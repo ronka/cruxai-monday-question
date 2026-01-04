@@ -1,7 +1,6 @@
 import { BoardView } from '@/components/board/BoardView';
 
-const Index = () => {
+export default function Home() {
   return <BoardView />;
-};
+}
 
-export default Index;

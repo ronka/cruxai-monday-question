@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from 'react';
 import { Board, Group, Task, GROUP_COLORS } from '@/types/board';
 import { GroupSection } from './GroupSection';

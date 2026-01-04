@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from 'react';
 import { Group, Task } from '@/types/board';
 import { TaskRow } from './TaskRow';

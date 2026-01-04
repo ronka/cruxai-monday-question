@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useRef, useEffect } from 'react';
 import { PEOPLE } from '@/types/board';
 import { cn } from '@/lib/utils';

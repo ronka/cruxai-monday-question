@@ -1,3 +1,5 @@
+"use client";
+
 import { Task, StatusType } from '@/types/board';
 import { StatusCell } from './StatusCell';
 import { TextCell } from './TextCell';

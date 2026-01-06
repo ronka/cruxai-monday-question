@@ -5,7 +5,7 @@ export interface Task {
   name: string;
   status: StatusType;
   person: string | null;
-  date: Date | null;
+  date: string | null; // ISO string format
 }
 
 export interface Group {

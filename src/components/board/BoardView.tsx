@@ -1,80 +1,39 @@
 "use client";
 
-import { useState } from 'react';
-import { Board, Group, Task, GROUP_COLORS } from '@/types/board';
+import { Group, Task } from '@/types/board';
 import { GroupSection } from './GroupSection';
-import { initialBoard } from '@/data/initialData';
 import { Plus } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import {
+  updateGroup as updateGroupAction,
+  updateTask as updateTaskAction,
+  deleteTask as deleteTaskAction,
+  addTask as addTaskAction,
+  addGroup as addGroupAction,
+} from '@/store/slices/boardSlice';
 
 export function BoardView() {
-  const [board, setBoard] = useState<Board>(initialBoard);
+  const dispatch = useAppDispatch();
+  const board = useAppSelector((state) => state.board.board);
 
   const updateGroup = (groupId: string, updates: Partial<Group>) => {
-    setBoard((prev) => ({
-      ...prev,
-      groups: prev.groups.map((g) =>
-        g.id === groupId ? { ...g, ...updates } : g
-      ),
-    }));
+    dispatch(updateGroupAction({ groupId, updates }));
   };
 
   const updateTask = (groupId: string, taskId: string, updates: Partial<Task>) => {
-    setBoard((prev) => ({
-      ...prev,
-      groups: prev.groups.map((g) =>
-        g.id === groupId
-          ? {
-              ...g,
-              tasks: g.tasks.map((t) =>
-                t.id === taskId ? { ...t, ...updates } : t
-              ),
-            }
-          : g
-      ),
-    }));
+    dispatch(updateTaskAction({ groupId, taskId, updates }));
   };
 
   const deleteTask = (groupId: string, taskId: string) => {
-    setBoard((prev) => ({
-      ...prev,
-      groups: prev.groups.map((g) =>
-        g.id === groupId
-          ? { ...g, tasks: g.tasks.filter((t) => t.id !== taskId) }
-          : g
-      ),
-    }));
+    dispatch(deleteTaskAction({ groupId, taskId }));
   };
 
   const addTask = (groupId: string) => {
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      name: '',
-      status: 'none',
-      person: null,
-      date: null,
-    };
-
-    setBoard((prev) => ({
-      ...prev,
-      groups: prev.groups.map((g) =>
-        g.id === groupId ? { ...g, tasks: [...g.tasks, newTask] } : g
-      ),
-    }));
+    dispatch(addTaskAction({ groupId }));
   };
 
   const addGroup = () => {
-    const newGroup: Group = {
-      id: `group-${Date.now()}`,
-      name: 'New Group',
-      color: GROUP_COLORS[board.groups.length % GROUP_COLORS.length],
-      isCollapsed: false,
-      tasks: [],
-    };
-
-    setBoard((prev) => ({
-      ...prev,
-      groups: [...prev.groups, newGroup],
-    }));
+    dispatch(addGroupAction());
   };
 
   return (

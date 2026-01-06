@@ -19,7 +19,7 @@ export function TaskRow({ task, onUpdate, onDelete, groupColor }: TaskRowProps) 
     <div className="flex items-stretch border-b border-border group hover:bg-accent/30 transition-colors">
       {/* Color indicator */}
       <div className="w-1.5 flex-shrink-0" style={{ backgroundColor: groupColor }} />
-      
+
       {/* Task name */}
       <div className="flex-1 min-w-[200px] border-r border-border">
         <TextCell
@@ -28,7 +28,7 @@ export function TaskRow({ task, onUpdate, onDelete, groupColor }: TaskRowProps) 
           placeholder="+ Add task"
         />
       </div>
-      
+
       {/* Person */}
       <div className="w-[140px] border-r border-border">
         <PersonCell
@@ -36,7 +36,7 @@ export function TaskRow({ task, onUpdate, onDelete, groupColor }: TaskRowProps) 
           onChange={(person) => onUpdate({ person })}
         />
       </div>
-      
+
       {/* Status */}
       <div className="w-[140px] border-r border-border">
         <StatusCell
@@ -44,15 +44,15 @@ export function TaskRow({ task, onUpdate, onDelete, groupColor }: TaskRowProps) 
           onChange={(status) => onUpdate({ status })}
         />
       </div>
-      
+
       {/* Date */}
       <div className="w-[100px] border-r border-border">
         <DateCell
-          date={task.date}
-          onChange={(date) => onUpdate({ date })}
+          date={task.date ? new Date(task.date) : null}
+          onChange={(date) => onUpdate({ date: date ? date.toISOString() : null })}
         />
       </div>
-      
+
       {/* Delete button */}
       <div className="w-10 flex items-center justify-center">
         <button

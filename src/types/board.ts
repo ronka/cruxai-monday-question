@@ -6,6 +6,7 @@ export interface Task {
   status: StatusType;
   person: string | null;
   date: string | null; // ISO string format
+  estimation: string | null;
 }
 
 export interface Group {

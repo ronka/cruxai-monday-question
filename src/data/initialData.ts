@@ -10,9 +10,9 @@ export const initialBoard: Board = {
       color: 'hsl(195, 100%, 45%)',
       isCollapsed: false,
       tasks: [
-        { id: 'task-1', name: 'Design homepage mockup', status: 'working', person: 'Alex', date: '2026-01-10' },
-        { id: 'task-2', name: 'Set up project repository', status: 'done', person: 'Jordan', date: '2026-01-05' },
-        { id: 'task-3', name: 'Write documentation', status: 'waiting', person: null, date: '2026-01-15' },
+        { id: 'task-1', name: 'Design homepage mockup', status: 'working', person: 'Alex', date: '2026-01-10', estimation: null },
+        { id: 'task-2', name: 'Set up project repository', status: 'done', person: 'Jordan', date: '2026-01-05', estimation: null },
+        { id: 'task-3', name: 'Write documentation', status: 'waiting', person: null, date: '2026-01-15', estimation: null },
       ],
     },
     {
@@ -21,8 +21,8 @@ export const initialBoard: Board = {
       color: 'hsl(35, 100%, 50%)',
       isCollapsed: false,
       tasks: [
-        { id: 'task-4', name: 'Implement authentication', status: 'stuck', person: 'Sam', date: '2026-01-08' },
-        { id: 'task-5', name: 'Create API endpoints', status: 'working', person: 'Taylor', date: '2026-01-12' },
+        { id: 'task-4', name: 'Implement authentication', status: 'stuck', person: 'Sam', date: '2026-01-08', estimation: null },
+        { id: 'task-5', name: 'Create API endpoints', status: 'working', person: 'Taylor', date: '2026-01-12', estimation: null },
       ],
     },
     {
@@ -31,7 +31,7 @@ export const initialBoard: Board = {
       color: 'hsl(145, 65%, 42%)',
       isCollapsed: false,
       tasks: [
-        { id: 'task-6', name: 'Project kickoff meeting', status: 'done', person: 'Alex', date: '2026-01-02' },
+        { id: 'task-6', name: 'Project kickoff meeting', status: 'done', person: 'Alex', date: '2026-01-02', estimation: null },
       ],
     },
   ],

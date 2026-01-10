@@ -61,6 +61,7 @@ export function GroupSection({
             <div className="w-[140px] px-3 py-2 border-r border-border text-center">Person</div>
             <div className="w-[140px] px-3 py-2 border-r border-border text-center">Status</div>
             <div className="w-[100px] px-3 py-2 border-r border-border text-center">Date</div>
+            <div className="w-[120px] px-3 py-2 border-r border-border text-center">Estimation</div>
             <div className="w-10" />
           </div>
 

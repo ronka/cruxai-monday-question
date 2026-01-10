@@ -5,6 +5,7 @@ import { StatusCell } from './StatusCell';
 import { TextCell } from './TextCell';
 import { DateCell } from './DateCell';
 import { PersonCell } from './PersonCell';
+import { EstimationCell } from './EstimationCell';
 import { Trash2 } from 'lucide-react';
 
 interface TaskRowProps {
@@ -55,6 +56,12 @@ export function TaskRow({ task, onUpdate, onDelete, groupColor }: TaskRowProps) 
           onChange={(date) => onUpdate({ date: date ? date.toISOString() : null })}
         />
       </div>
+
+      {/* Estimation */}
+      <EstimationCell
+        value={task.estimation}
+        onChange={(value) => onUpdate({ estimation: value })}
+      />
 
       {/* Delete button */}
       <div className="w-10 flex items-center justify-center">

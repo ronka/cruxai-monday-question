@@ -61,6 +61,7 @@ const boardSlice = createSlice({
           status: 'none',
           person: null,
           date: null,
+          estimation: null,
         };
         group.tasks.push(newTask);
       }

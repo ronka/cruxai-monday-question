@@ -15,19 +15,19 @@ interface GroupSectionProps {
   onAddTask: () => void;
 }
 
-export function GroupSection({ 
-  group, 
-  onUpdateGroup, 
-  onUpdateTask, 
+export function GroupSection({
+  group,
+  onUpdateGroup,
+  onUpdateTask,
   onDeleteTask,
-  onAddTask 
+  onAddTask
 }: GroupSectionProps) {
   const toggleCollapse = () => {
     onUpdateGroup({ isCollapsed: !group.isCollapsed });
   };
 
   return (
-    <div className="mb-6">
+    <div className="mb-6" data-testid={`group-section-${group.id}`}>
       {/* Group header */}
       <div className="flex items-center gap-2 mb-2">
         <button
@@ -41,7 +41,7 @@ export function GroupSection({
             <ChevronDown className="w-5 h-5" />
           )}
         </button>
-        <h3 
+        <h3
           className="text-lg font-semibold"
           style={{ color: group.color }}
         >

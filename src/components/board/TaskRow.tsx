@@ -16,12 +16,15 @@ interface TaskRowProps {
 
 export function TaskRow({ task, onUpdate, onDelete, groupColor }: TaskRowProps) {
   return (
-    <div className="flex items-stretch border-b border-border group hover:bg-accent/30 transition-colors">
+    <div
+      className="flex items-stretch border-b border-border group hover:bg-accent/30 transition-colors"
+      data-testid="task-row"
+    >
       {/* Color indicator */}
       <div className="w-1.5 flex-shrink-0" style={{ backgroundColor: groupColor }} />
 
       {/* Task name */}
-      <div className="flex-1 min-w-[200px] border-r border-border">
+      <div className="flex-1 min-w-[200px] border-r border-border" data-testid="task-name">
         <TextCell
           value={task.name}
           onChange={(name) => onUpdate({ name })}
@@ -46,7 +49,7 @@ export function TaskRow({ task, onUpdate, onDelete, groupColor }: TaskRowProps) 
       </div>
 
       {/* Date */}
-      <div className="w-[100px] border-r border-border">
+      <div className="w-[100px] border-r border-border" data-testid="task-date">
         <DateCell
           date={task.date ? new Date(task.date) : null}
           onChange={(date) => onUpdate({ date: date ? date.toISOString() : null })}

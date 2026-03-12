@@ -1,84 +1,60 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Board, Group, Task, GROUP_COLORS } from '@/types/board';
-import { initialBoard } from '@/data/initialData';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { Board, Group, Task } from '@/types/board';
+// TODO: import { getBoard, updateTask, addTask, deleteTask, addGroup } from '@/api/boardApi';
 
 interface BoardState {
-  board: Board;
+  board: Board | null;
+  loading: boolean;
+  error: string | null;
 }
 
 const initialState: BoardState = {
-  board: initialBoard,
+  board: null,
+  loading: false,
+  error: null,
 };
+
+// TODO: implement fetchBoard — call getBoard() and set board in state
+// export const fetchBoard = createAsyncThunk('board/fetchBoard', async () => { ... });
+
+// TODO: implement updateTaskAsync — call updateTask() and merge the returned task into state
+// export const updateTaskAsync = createAsyncThunk(...);
+
+// TODO: implement addTaskAsync — call addTask() and append the returned task to the group
+// export const addTaskAsync = createAsyncThunk(...);
+
+// TODO: implement deleteTaskAsync — call deleteTask() and remove the task from state
+// export const deleteTaskAsync = createAsyncThunk(...);
+
+// TODO: implement addGroupAsync — call addGroup() and append the returned group to state
+// export const addGroupAsync = createAsyncThunk(...);
 
 const boardSlice = createSlice({
   name: 'board',
   initialState,
   reducers: {
+    // Kept synchronous — used for collapse/expand toggling (no server round-trip needed)
     updateGroup: (
       state,
       action: PayloadAction<{ groupId: string; updates: Partial<Group> }>
     ) => {
       const { groupId, updates } = action.payload;
-      const group = state.board.groups.find((g) => g.id === groupId);
+      const group = state.board?.groups.find((g) => g.id === groupId);
       if (group) {
         Object.assign(group, updates);
       }
     },
-    updateTask: (
-      state,
-      action: PayloadAction<{
-        groupId: string;
-        taskId: string;
-        updates: Partial<Task>;
-      }>
-    ) => {
-      const { groupId, taskId, updates } = action.payload;
-      const group = state.board.groups.find((g) => g.id === groupId);
-      if (group) {
-        const task = group.tasks.find((t) => t.id === taskId);
-        if (task) {
-          Object.assign(task, updates);
-        }
-      }
-    },
-    deleteTask: (
-      state,
-      action: PayloadAction<{ groupId: string; taskId: string }>
-    ) => {
-      const { groupId, taskId } = action.payload;
-      const group = state.board.groups.find((g) => g.id === groupId);
-      if (group) {
-        group.tasks = group.tasks.filter((t) => t.id !== taskId);
-      }
-    },
-    addTask: (state, action: PayloadAction<{ groupId: string }>) => {
-      const { groupId } = action.payload;
-      const group = state.board.groups.find((g) => g.id === groupId);
-      if (group) {
-        const newTask: Task = {
-          id: `task-${Date.now()}`,
-          name: '',
-          status: 'none',
-          person: null,
-          date: null,
-        };
-        group.tasks.push(newTask);
-      }
-    },
-    addGroup: (state) => {
-      const newGroup: Group = {
-        id: `group-${Date.now()}`,
-        name: 'New Group',
-        color: GROUP_COLORS[state.board.groups.length % GROUP_COLORS.length],
-        isCollapsed: false,
-        tasks: [],
-      };
-      state.board.groups.push(newGroup);
-    },
   },
+  // TODO: wire async thunks via extraReducers
+  // extraReducers: (builder) => {
+  //   builder
+  //     .addCase(fetchBoard.pending, (state) => { ... })
+  //     .addCase(fetchBoard.fulfilled, (state, action) => { ... })
+  //     .addCase(fetchBoard.rejected, (state, action) => { ... })
+  //     // ... repeat for other thunks
+  // },
 });
 
-export const { updateGroup, updateTask, deleteTask, addTask, addGroup } =
-  boardSlice.actions;
+export const { updateGroup } = boardSlice.actions;
 
 export default boardSlice.reducer;

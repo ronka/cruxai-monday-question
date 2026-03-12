@@ -36,6 +36,14 @@ export function BoardView() {
     dispatch(addGroupAction());
   };
 
+  if (!board) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading board...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}

@@ -91,10 +91,10 @@ const waitForBoard = () => waitFor(() => screen.getByTestId('group-section-group
 
 // ─── Requirement: API wiring ──────────────────────────────────────────────────
 
-test('shows loading state before board data arrives', () => {
+test('shows loading state before board data arrives', async () => {
   (boardApi.getBoard as jest.Mock).mockReturnValue(new Promise(() => {})); // never resolves
   renderBoard();
-  expect(screen.getByTestId('board-loading')).toBeInTheDocument();
+  expect(await screen.findByTestId('board-loading')).toBeInTheDocument();
 });
 
 test('loads board data from the API on mount, not from hardcoded initial data', async () => {
@@ -138,10 +138,11 @@ test('calls addGroup API when a group is added', async () => {
 
 // ─── Requirement: Estimation column ──────────────────────────────────────────
 
-test('renders Estimation column header', async () => {
+test('renders Estimation column header alongside the other column headers', async () => {
   renderBoard();
   await waitForBoard();
-  expect(screen.getAllByText('Estimation').length).toBeGreaterThan(0);
+  const taskHeader = screen.getAllByText('Task')[0];
+  expect(within(taskHeader.parentElement!).getByText('Estimation')).toBeInTheDocument();
 });
 
 test('renders an estimation cell for every task row', async () => {
@@ -168,15 +169,14 @@ test('displays server-normalized value after editing estimation (1d → 8h)', as
   renderBoard();
   await waitForBoard();
 
-  const cell = within(
-    within(screen.getByTestId('group-section-group-1')).getAllByTestId('task-row')[0]
-  ).getByTestId('task-estimation');
+  const firstRow = within(screen.getByTestId('group-section-group-1')).getAllByTestId('task-row')[0];
+  await user.click(within(firstRow).getByTestId('task-estimation'));
+  await user.clear(within(firstRow).getByRole('textbox'));
+  await user.type(within(firstRow).getByRole('textbox'), '1d{enter}');
 
-  await user.click(cell);
-  await user.clear(within(cell).getByRole('textbox'));
-  await user.type(within(cell).getByRole('textbox'), '1d{enter}');
-
-  await waitFor(() => expect(cell).toHaveTextContent('8h'));
+  await waitFor(() =>
+    expect(within(firstRow).getByTestId('task-estimation')).toHaveTextContent('8h')
+  );
 });
 
 test('displays server-normalized value after editing estimation (1w → 5d)', async () => {
@@ -186,15 +186,14 @@ test('displays server-normalized value after editing estimation (1w → 5d)', as
   renderBoard();
   await waitForBoard();
 
-  const cell = within(
-    within(screen.getByTestId('group-section-group-1')).getAllByTestId('task-row')[0]
-  ).getByTestId('task-estimation');
+  const firstRow = within(screen.getByTestId('group-section-group-1')).getAllByTestId('task-row')[0];
+  await user.click(within(firstRow).getByTestId('task-estimation'));
+  await user.clear(within(firstRow).getByRole('textbox'));
+  await user.type(within(firstRow).getByRole('textbox'), '1w{enter}');
 
-  await user.click(cell);
-  await user.clear(within(cell).getByRole('textbox'));
-  await user.type(within(cell).getByRole('textbox'), '1w{enter}');
-
-  await waitFor(() => expect(cell).toHaveTextContent('5d'));
+  await waitFor(() =>
+    expect(within(firstRow).getByTestId('task-estimation')).toHaveTextContent('5d')
+  );
 });
 
 test('displays server-normalized value after editing estimation (5 → 5h)', async () => {
@@ -204,15 +203,14 @@ test('displays server-normalized value after editing estimation (5 → 5h)', asy
   renderBoard();
   await waitForBoard();
 
-  const cell = within(
-    within(screen.getByTestId('group-section-group-1')).getAllByTestId('task-row')[0]
-  ).getByTestId('task-estimation');
+  const firstRow = within(screen.getByTestId('group-section-group-1')).getAllByTestId('task-row')[0];
+  await user.click(within(firstRow).getByTestId('task-estimation'));
+  await user.clear(within(firstRow).getByRole('textbox'));
+  await user.type(within(firstRow).getByRole('textbox'), '5{enter}');
 
-  await user.click(cell);
-  await user.clear(within(cell).getByRole('textbox'));
-  await user.type(within(cell).getByRole('textbox'), '5{enter}');
-
-  await waitFor(() => expect(cell).toHaveTextContent('5h'));
+  await waitFor(() =>
+    expect(within(firstRow).getByTestId('task-estimation')).toHaveTextContent('5h')
+  );
 });
 
 test('calls updateTask API with raw user input when estimation is saved', async () => {

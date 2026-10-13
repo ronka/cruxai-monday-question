@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Lumina — App redesign · Canvas Review",
-  description: "A Figma-style design review canvas. Interview starter.",
+  description: "A Figma-style design review canvas. Contextual comments interview starter.",
 };
 
 export default function RootLayout({

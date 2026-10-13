@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Globe, Menu, UserCircle2 } from "lucide-react";
-import { failNextSearch, resetStayData, searchStays, simulateBooking, simulatePriceChange, subscribeToStays } from "@/api/stayApi";
+import { failNextSearch, resetStayData, searchStays, simulateBooking, simulateHostDecision, simulateHostEditsReservation, simulatePriceChange, subscribeToStays } from "@/api/stayApi";
+import { seedReservation } from "@/data/stayData";
+import { TripsPage } from "./TripsPage";
 import { isDateKey } from "@/lib/dates";
 import { MockControls } from "@/mock/MockControls";
 import type { StayQuery } from "@/types/stay";
@@ -33,6 +35,7 @@ export function StayApp() {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState<StayQuery>(DEFAULT_QUERY);
   const [listingId, setListingId] = useState<string | null>(null);
+  const [section, setSection] = useState<"search" | "trips">("search");
   const [sort, setSort] = useState<Sort>("recommended");
   const [maxTotal, setMaxTotal] = useState("");
 
@@ -41,6 +44,7 @@ export function StayApp() {
       const url = readUrl();
       setQuery(url.query);
       setListingId(url.listing);
+      setSection(new URLSearchParams(window.location.search).get("section") === "trips" ? "trips" : "search");
     };
     restore();
     window.addEventListener("popstate", restore);
@@ -52,6 +56,7 @@ export function StayApp() {
         void queryClient.invalidateQueries({ queryKey: ["search"] });
         void queryClient.invalidateQueries({ queryKey: ["calendar"] });
         void queryClient.invalidateQueries({ queryKey: ["quote"] });
+        void queryClient.invalidateQueries({ queryKey: ["reservations"] });
       }),
     [queryClient],
   );
@@ -61,6 +66,7 @@ export function StayApp() {
     const listing = next.listing === undefined ? listingId : next.listing;
     setQuery(q);
     setListingId(listing);
+    setSection("search");
     const params = new URLSearchParams({ where: q.destination, checkIn: q.checkIn, checkOut: q.checkOut, guests: String(q.guests) });
     if (listing) params.set("listing", listing);
     window.history.pushState(null, "", `?${params}`);
@@ -84,6 +90,16 @@ export function StayApp() {
             <span className="text-[26px]">⌂</span> staybook
           </button>
           <span className="flex items-center gap-4 text-[14px]">
+            <button
+              type="button"
+              className={`font-semibold ${section === "trips" ? "underline underline-offset-8" : ""}`}
+              onClick={() => {
+                setSection("trips");
+                window.history.pushState(null, "", "?section=trips");
+              }}
+            >
+              Trips
+            </button>
             <span className="font-semibold">Become a host</span>
             <Globe className="h-4 w-4" />
             <span className="flex items-center gap-3 rounded-full border border-neutral-300 px-3 py-1.5"><Menu className="h-4 w-4" /><UserCircle2 className="h-7 w-7 text-neutral-500" /></span>
@@ -91,7 +107,9 @@ export function StayApp() {
         </div>
         <SearchBar query={query} onSearch={(q) => navigate({ query: q, listing: null })} />
       </header>
-      {listingId ? (
+      {section === "trips" ? (
+        <TripsPage />
+      ) : listingId ? (
         <ListingPage listingId={listingId} query={query} onBack={() => navigate({ listing: null })} />
       ) : (
         <main className="px-10 py-6">
@@ -134,6 +152,15 @@ export function StayApp() {
             actions: [
               { label: "Someone books Nov 13–16 at the Alfama flat", run: () => simulateBooking("l-1", "2026-11-13", 3) },
               { label: "Host raises Alfama flat prices 15%", run: () => simulatePriceChange("l-1", 15) },
+            ],
+          },
+          {
+            title: `Host of trip ${seedReservation.id}`,
+            actions: [
+              { label: "Host approves the pending change", run: () => simulateHostDecision(seedReservation.id, "approved") },
+              { label: "Host declines the pending change", run: () => simulateHostDecision(seedReservation.id, "declined") },
+              { label: "Host raises prices 10% (from Nov 1)", run: () => simulatePriceChange(seedReservation.listingId, 10, "2026-11-01") },
+              { label: "Host shortens the trip by one night", run: () => simulateHostEditsReservation(seedReservation.id) },
             ],
           },
           { title: "Failures", actions: [{ label: "Fail next search", run: failNextSearch }] },

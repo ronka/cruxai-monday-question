@@ -36,3 +36,17 @@ test("exact search excludes listings with an unavailable night", async () => {
   expect(after.some((r) => r.listing.id === "l-1")).toBe(false);
   expect(after.length).toBe(before.filter((r) => r.listing.id !== "l-1").length);
 });
+
+test("change quotes price extra guests and pets and track versions", async () => {
+  const { applyReservationChange, getReservation, quoteReservationChange, simulateHostEditsReservation } = await import("@/api/stayApi");
+  const reservation = await getReservation("r-7Q4K");
+  const same = await quoteReservationChange(reservation.id, { guests: 2, pets: 0 });
+  expect(same.differenceCents).toBe(0);
+  const bigger = await quoteReservationChange(reservation.id, { guests: 4, pets: 1 });
+  expect(bigger.extraGuestCents).toBe(2 * 2500 * 4);
+  expect(bigger.differenceCents).toBe(2 * 2500 * 4 + 4000);
+  await expect(quoteReservationChange(reservation.id, { guests: 7, pets: 0 })).rejects.toThrow("sleeps up to 6");
+  await expect(quoteReservationChange(reservation.id, { guests: 2, pets: 3 })).rejects.toThrow("Up to 2 pets");
+  await simulateHostEditsReservation(reservation.id);
+  await expect(applyReservationChange(reservation.id, { guests: 4, pets: 1, totalCents: bigger.newTotalCents }, reservation.version)).rejects.toThrow("changed since");
+});

@@ -42,6 +42,10 @@ export const seedListings: (Listing & { baseNightlyCents: number })[] = seeds.ma
     reviewCount,
     palette,
     amenities: AMENITIES.filter((_, i) => (index + i) % 3 !== 0),
+    baseGuests: Math.min(2, maxGuests),
+    extraGuestFeeCents: maxGuests > 2 ? 2500 : 0,
+    maxPets: petsAllowed ? 2 : 0,
+    petFeeCents: petsAllowed ? 4000 : 0,
     description: `${kind} in ${city} hosted by ${hostName}. Sleeps ${maxGuests} across ${bedrooms} bedroom${bedrooms > 1 ? "s" : ""}.${petsAllowed ? " Pets welcome." : ""}`,
     baseNightlyCents: nightly,
   }),
@@ -54,3 +58,6 @@ export const CALENDAR_END = "2027-03-01";
 export function formatMoney(cents: number): string {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: cents % 100 ? 2 : 0 });
 }
+
+/** The signed-in guest's confirmed trip. */
+export const seedReservation = { id: "r-7Q4K", listingId: "l-2", checkIn: "2026-11-20", checkOut: "2026-11-24", guests: 2, pets: 0 };

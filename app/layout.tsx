@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Staybook — Stays",
-  description: "An Airbnb-style stays search. Interview starter.",
+  description: "An Airbnb-style stays search. Reservation changes interview starter.",
 };
 
 export default function RootLayout({

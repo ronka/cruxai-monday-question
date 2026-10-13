@@ -3,8 +3,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Interview starter",
-  description: "Feature implementation interview starter.",
+  title: "Platform overview · Pulse",
+  description: "A Datadog-style monitoring dashboard. Interview starter.",
 };
 
 export default function RootLayout({

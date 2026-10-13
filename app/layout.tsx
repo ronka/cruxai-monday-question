@@ -3,8 +3,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Interview starter",
-  description: "Feature implementation interview starter.",
+  title: "Agenda — Rina Sato",
+  description: "A Google Calendar-style calendar. Interview starter.",
 };
 
 export default function RootLayout({

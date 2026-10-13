@@ -1,4 +1,4 @@
-import { databases, initialFields, initialRecords } from "@/data/ledgerData";
+import { databases, initialFields, initialRecords, initialTaskRecords, taskFields } from "@/data/ledgerData";
 import { clock } from "@/mock/clock";
 import { createEmitter, newId } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
@@ -38,7 +38,7 @@ export function ledgerDb(): Promise<LocalDatabase> {
     version: 1,
     schema: SCHEMA,
     seed: (db) => {
-      for (const field of initialFields)
+      for (const field of [...initialFields, ...taskFields])
         db.run("INSERT INTO fields VALUES (?, ?, ?, ?, ?, ?)", [
           field.id,
           field.databaseId,
@@ -48,7 +48,7 @@ export function ledgerDb(): Promise<LocalDatabase> {
           field.position,
         ]);
       const now = clock.date().toISOString();
-      for (const record of initialRecords)
+      for (const record of [...initialRecords, ...initialTaskRecords])
         db.run("INSERT INTO records VALUES (?, ?, ?, ?, ?)", [
           record.id,
           record.databaseId,
@@ -246,6 +246,26 @@ export async function simulateCollaboratorEdit(databaseId: string): Promise<void
   const values = { ...JSON.parse(row.data), [status.id]: options[Math.floor(Math.random() * options.length)] };
   db.run("UPDATE records SET data = ?, updated_at = ? WHERE id = ?", [JSON.stringify(values), clock.date().toISOString(), row.id]);
   events.emit({ type: "record", databaseId, recordId: row.id });
+}
+
+/** Mock control: a teammate edits a random task's estimate. */
+export async function simulateEstimateChange(): Promise<void> {
+  const db = await ledgerDb();
+  const rows = db.all<RecordRow>("SELECT * FROM records WHERE database_id = 'tasks'");
+  if (rows.length === 0) throw new Error("No tasks left");
+  const row = rows[Math.floor(Math.random() * rows.length)];
+  const values = { ...JSON.parse(row.data), "t-estimate": 1 + Math.floor(Math.random() * 16) };
+  db.run("UPDATE records SET data = ?, updated_at = ? WHERE id = ?", [JSON.stringify(values), clock.date().toISOString(), row.id]);
+  events.emit({ type: "record", databaseId: "tasks", recordId: row.id });
+}
+
+/** Mock control: a teammate deletes a task by ID (e.g. "t-3"). */
+export async function simulateTaskDeletion(id: string): Promise<void> {
+  const db = await ledgerDb();
+  const record = readRecord(db, id);
+  if (record.databaseId !== "tasks") throw new Error("Not a task");
+  db.run("DELETE FROM records WHERE id = ?", [id]);
+  events.emit({ type: "record", databaseId: "tasks", recordId: id });
 }
 
 export function failNextSave(): void {

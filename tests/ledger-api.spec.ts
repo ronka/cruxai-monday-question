@@ -28,3 +28,11 @@ test("deleting a field removes it and its values", async () => {
   expect(records.every((record) => !("f-team" in record.values))).toBe(true);
   await expect(deleteField("f-title")).rejects.toThrow("cannot be deleted");
 });
+
+test("tasks are a separate database with estimates", async () => {
+  const tasks = await getRecords("tasks");
+  expect(tasks).toHaveLength(20);
+  expect(tasks.some((task) => task.values["t-estimate"] == null)).toBe(true);
+  const projects = await getRecords("projects");
+  expect(projects.every((project) => project.databaseId === "projects")).toBe(true);
+});

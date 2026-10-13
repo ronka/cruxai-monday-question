@@ -15,7 +15,15 @@ export const databases: LedgerDatabase[] = [
     icon: "🗂️",
     description: "Everything the product team is working on this half.",
   },
+  {
+    id: "tasks",
+    name: "Tasks",
+    icon: "✅",
+    description: "Individual pieces of work with hour estimates.",
+  },
 ];
+
+export const TASK_STATUS_OPTIONS = ["To do", "Doing", "Done"];
 
 export const STATUS_OPTIONS = ["Not started", "In progress", "Blocked", "Done"];
 
@@ -57,4 +65,41 @@ export const initialRecords: { id: string; databaseId: string; values: Record<st
       "f-team": team,
       "f-budget": budget,
     },
+  }));
+
+export const taskFields: Field[] = [
+  { id: "t-title", databaseId: "tasks", name: "Task", type: "title", options: [], position: 0 },
+  { id: "t-status", databaseId: "tasks", name: "Status", type: "status", options: TASK_STATUS_OPTIONS, position: 1 },
+  { id: "t-estimate", databaseId: "tasks", name: "Estimate (h)", type: "number", options: [], position: 2 },
+  { id: "t-assignee", databaseId: "tasks", name: "Assignee", type: "person", options: [], position: 3 },
+];
+
+const taskRows: [string, string, number | null, string][] = [
+  ["Map current onboarding steps", "Done", 4, "ava"],
+  ["Design checklist component", "Doing", 10, "emma"],
+  ["Persist checklist progress", "To do", 6, "ben"],
+  ["Billing API inventory", "Done", 3, "ben"],
+  ["Migrate invoices table", "To do", 16, "diego"],
+  ["Payment method form", "To do", 8, "chloe"],
+  ["Collect relevance judgments", "Done", 5, "chloe"],
+  ["Tune ranking weights", "Doing", 12, "chloe"],
+  ["Offline sync spike", "Doing", 20, "diego"],
+  ["Conflict resolution rules", "To do", null, "diego"],
+  ["Fix focus order on settings", "Done", 2, "emma"],
+  ["Screen reader labels for tables", "Done", 3, "emma"],
+  ["Role matrix", "Doing", 6, "ben"],
+  ["Invite flow permissions", "To do", 9, "ava"],
+  ["Digest email template", "Done", 4, "ava"],
+  ["CSV parser and preview", "To do", 10, "diego"],
+  ["Health score formula", "To do", 7, "ava"],
+  ["Shortcut cheat sheet", "Done", 1.5, "chloe"],
+  ["Audit export job", "Doing", 8, "ben"],
+  ["Spanish copy review", "To do", 3, "emma"],
+];
+
+export const initialTaskRecords: { id: string; databaseId: string; values: Record<string, CellValue> }[] =
+  taskRows.map(([title, status, estimate, assignee], index) => ({
+    id: `t-${index + 1}`,
+    databaseId: "tasks",
+    values: { "t-title": title, "t-status": status, "t-estimate": estimate, "t-assignee": assignee },
   }));

@@ -14,6 +14,8 @@ import {
   listDatabases,
   resetLedgerData,
   simulateCollaboratorEdit,
+  simulateEstimateChange,
+  simulateTaskDeletion,
   subscribeToLedger,
   updateRecordValue,
 } from "@/api/ledgerApi";
@@ -257,7 +259,17 @@ export function LedgerApp() {
         sections={[
           {
             title: "Collaborators",
-            actions: [{ label: "Teammate edits a record's status", run: () => simulateCollaboratorEdit(databaseId) }],
+            actions: [
+              { label: "Teammate edits a record's status", run: () => simulateCollaboratorEdit(databaseId) },
+              { label: "Teammate changes a task estimate", run: simulateEstimateChange },
+              {
+                label: "Teammate deletes a task by ID…",
+                run: async () => {
+                  const id = window.prompt("Task ID (e.g. t-3)");
+                  if (id) await simulateTaskDeletion(id.trim());
+                },
+              },
+            ],
           },
           { title: "Failures", actions: [{ label: "Fail next cell save", run: failNextSave }] },
         ]}

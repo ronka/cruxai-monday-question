@@ -1,6 +1,5 @@
-import { BoardView } from '@/components/board/BoardView';
+import { ChatWorkspace } from '@/components/chat/ChatWorkspace';
 
 export default function Home() {
-  return <BoardView />;
+  return <ChatWorkspace />;
 }
-

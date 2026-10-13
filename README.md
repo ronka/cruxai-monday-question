@@ -1,73 +1,58 @@
-# Welcome to your Lovable project
+# Relay — threaded conversations interview
 
-## Project info
+A Slack-inspired frontend starter for a feature implementation interview. The app already has channels, searchable message history, message sending, per-channel drafts, channel URLs, and simulated live messages. **Threaded conversations are the candidate's task and are not implemented.**
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Run
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm ci
+npm run dev -- -p 3002
 ```
 
-**Edit a file directly in GitHub**
+Open http://localhost:3002. No environment variables, database, account, or backend required. Uses the existing Next.js 15, React 18, TypeScript, and TanStack Query dependencies.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Task
 
-**Use GitHub Codespaces**
+Add threaded conversations to the workspace:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+1. Open any channel message in a side panel showing the original message and its replies. Close the panel without losing the channel position.
+2. Send replies optimistically. Show pending and failed states; retry a failed reply without losing text or creating duplicates.
+3. Display a reply count and unique participant avatars on the parent message in the channel timeline. Replies must not become top-level channel messages.
+4. Receive new replies live and keep the thread and parent summary consistent. Clean up subscriptions and avoid stale results when switching threads quickly.
+5. Preserve unfinished drafts independently for each thread when switching, closing, and reopening threads. Persistence across a full page refresh is optional.
+6. Support a shareable URL that loads the correct channel and parent message after a fresh page load. Handle missing messages and back/forward navigation.
+7. Include loading, empty, failure, and keyboard-accessible states. Keep the existing channel search and message sending working.
 
-## What technologies are used for this project?
+Choose and document the URL format and state design. Add meaningful tests for the interactions and races your implementation handles. No backend implementation is required.
 
-This project is built with:
+## Code map
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- [Workspace UI](src/components/chat/ChatWorkspace.tsx): channel routing, query subscriptions, composer, mock controls.
+- [Message list](src/components/chat/MessageList.tsx): flat channel messages.
+- [Mock API](src/api/chatApi.ts): async in-memory reads/writes with 350 ms latency.
+- [Fixtures](src/data/chatData.ts): channels, members, starting messages.
+- [Types](src/types/chat.ts): message and send contracts.
 
-## How can I deploy this project?
+`app/` is the Next.js route directory. This branch replaces the Monday exercise; the original is preserved on `main`.
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Mock API contract
 
-## Can I connect a custom domain to my Lovable project?
+- `getMessages(channelId)` returns top-level messages only.
+- `getMessage(id)` returns one message or rejects if missing.
+- `getReplies(parentId)` returns replies to a message.
+- `sendMessage({ channelId, body, clientId, parentId? })` sends either a channel message or a reply. Use a stable client ID to make successful retries idempotent. The server trims whitespace and rejects empty or oversized messages.
+- `subscribeToMessages(listener)` delivers new messages and replies, and returns an unsubscribe function. A successful send also emits an event before its promise resolves.
+- `simulateIncomingMessage(channelId, parentId?)` creates a message from another member. Pass a parent ID to exercise incoming thread replies as you build the feature.
+- `failNextMessageSend()` makes the next new send reject once.
 
-Yes, you can!
+The collapsible controls beneath the composer can inject messages, enable a 15-second incoming-message interval, or fail the next send. Automatic simulation is off by default. Thread API functions are supplied as infrastructure, but no thread UI, summaries, optimistic reply state, thread drafts, or thread routing is supplied.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Data is local to this browser tab and resets on reload. Cross-tab synchronization and production persistence are out of scope.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Verify
+
+```sh
+npx tsc --noEmit
+npm test -- --runInBand
+npm run build
+```

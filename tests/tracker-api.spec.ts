@@ -35,7 +35,18 @@ test("archived issues leave project lists but stay searchable on request", async
 
 test("identifiers increment per project and deleted issues reject", async () => {
   const issue = await createIssue({ projectId: "mob", title: "New one" });
-  expect(issue.identifier).toBe("MOB-7");
+  expect(issue.identifier).toBe("MOB-8");
   await deleteIssue(issue.id);
-  await expect(getIssue("MOB-7")).rejects.toThrow("Issue not found");
+  await expect(getIssue("MOB-8")).rejects.toThrow("Issue not found");
+});
+
+test("triage issues stay off project boards until accepted", async () => {
+  const { getTriageIssues, simulateIncomingReport } = await import("@/api/trackerApi");
+  const triage = await getTriageIssues();
+  expect(triage).toHaveLength(6);
+  const incoming = await simulateIncomingReport();
+  expect((await getTriageIssues()).at(-1)?.id).toBe(incoming.id);
+  expect((await getProjectIssues(incoming.projectId)).some((i) => i.id === incoming.id)).toBe(false);
+  await updateIssue(incoming.id, { status: "todo", priority: 2 });
+  expect((await getProjectIssues(incoming.projectId)).some((i) => i.id === incoming.id)).toBe(true);
 });

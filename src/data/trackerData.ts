@@ -7,6 +7,8 @@ export const users: User[] = [
   { id: "priya", name: "Priya Raman", initials: "PR", color: "#e5484d" },
   { id: "liam", name: "Liam Novak", initials: "LN", color: "#f76b15" },
   { id: "zoe", name: "Zoe Kim", initials: "ZK", color: "#30a46c" },
+  /** Bot account that files customer reports into triage. */
+  { id: "support", name: "Support bot", initials: "SB", color: "#71717a" },
 ];
 
 export const projects: Project[] = [
@@ -23,6 +25,9 @@ export const STATUSES: { id: IssueStatus; label: string; color: string }[] = [
   { id: "done", label: "Done", color: "#6e56cf" },
   { id: "canceled", label: "Canceled", color: "#a1a1aa" },
 ];
+
+/** Not a board column: triage issues live outside project boards. */
+export const TRIAGE_STATUS = { id: "triage" as const, label: "Triage", color: "#f76b15" };
 
 export const PRIORITIES: { id: Priority; label: string }[] = [
   { id: 0, label: "No priority" },
@@ -64,3 +69,21 @@ export const descriptions: Record<string, string> = {
   "Paginate /issues with cursors": "Offset pagination breaks when issues move between pages. Switch to opaque cursors.",
   "Offline queue for issue edits": "Queue edits made offline and replay them in order when the connection returns.",
 };
+
+/** Incoming customer reports waiting in triage: [project, title, reporter, body]. */
+export const seedTriage: [string, string, string, string][] = [
+  ["web", "Can't save settings after changing workspace name", "dana@acme.io", "Clicking Save does nothing. No error. Chrome 129."],
+  ["api", "Webhooks arriving twice", "ops@globex.com", "We see duplicate deliveries for issue.updated about once an hour."],
+  ["mob", "App crashes opening a link from email", "kai@initech.dev", "Tapping an issue link from a notification email crashes the iOS app."],
+  ["web", "Command menu shortcut conflicts with browser", "lee@umbrella.co", "Cmd+K opens the browser search bar in Firefox instead of the menu."],
+  ["api", "Rate limit too strict for CI", "build@hooli.xyz", "Our CI hits 429 when syncing 300 issues. Can the limit be raised?"],
+  ["web", "Screen flickers switching between workspaces", "sam@stark.ind", "Looks like the same bug as the workspace switch flicker."],
+];
+
+export const incomingReports: [string, string, string, string][] = [
+  ["mob", "Push notifications stopped after update", "ivy@wayne.ent", "No pushes since 4.2.0 on Android 14."],
+  ["web", "Export to CSV missing assignee column", "max@cyberdyne.ai", "The exported file has no assignee data."],
+  ["api", "Search endpoint returns archived issues", "ana@soylent.co", "GET /v1/search includes archived issues."],
+  ["web", "Typo in onboarding email", "joe@vandelay.com", "The welcome email says 'recieve'."],
+  ["mob", "Dark mode text unreadable on issue detail", "eve@tyrell.corp", "Grey on grey in the description."],
+];

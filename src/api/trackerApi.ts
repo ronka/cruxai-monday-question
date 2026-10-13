@@ -1,4 +1,4 @@
-import { currentUserId, descriptions, projects, seedIssues, users } from "@/data/trackerData";
+import { currentUserId, descriptions, incomingReports, projects, seedIssues, seedTriage, users } from "@/data/trackerData";
 import { clock, HOUR } from "@/mock/clock";
 import { createEmitter, newId } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
@@ -67,6 +67,21 @@ export function trackerDb(): Promise<LocalDatabase> {
           created,
         ]);
       });
+      seedTriage.forEach(([projectId, title, reporter, body], index) => {
+        const project = projects.find((item) => item.id === projectId)!;
+        counts[projectId] = (counts[projectId] ?? 0) + 1;
+        const created = new Date(clock.now() - (seedTriage.length - index) * HOUR).toISOString();
+        db.run("INSERT INTO issues VALUES (?, ?, ?, ?, ?, 'triage', 0, NULL, NULL, NULL, ?, ?)", [
+          `tr-${index + 1}`,
+          `${project.key}-${counts[projectId]}`,
+          projectId,
+          title,
+          `Reported by ${reporter}\n\n${body}`,
+          created,
+          created,
+        ]);
+        db.run("INSERT INTO issue_history VALUES (?, ?, 'support', 'created', NULL, 'triage', ?)", [`htr-${index + 1}`, `tr-${index + 1}`, created]);
+      });
       for (const project of projects)
         db.run("INSERT INTO counters VALUES (?, ?)", [project.id, (counts[project.id] ?? 0) + 1]);
     },
@@ -116,12 +131,12 @@ export async function listProjects(): Promise<Project[]> {
   return simulate("listProjects", () => projects);
 }
 
-/** Non-archived issues in a project. */
+/** Non-archived, non-triage issues in a project. */
 export async function getProjectIssues(projectId: string): Promise<Issue[]> {
   const db = await trackerDb();
   return simulate("getProjectIssues", () =>
     db
-      .all<IssueRow>("SELECT * FROM issues WHERE project_id = ? AND archived_at IS NULL ORDER BY priority = 0, priority, created_at", [projectId])
+      .all<IssueRow>("SELECT * FROM issues WHERE project_id = ? AND archived_at IS NULL AND status != 'triage' ORDER BY priority = 0, priority, created_at", [projectId])
       .map(toIssue),
   );
 }
@@ -255,6 +270,40 @@ export async function deleteIssue(id: string): Promise<void> {
     });
     events.emit({ type: "deleted", issueId: issue.id });
   });
+}
+
+/** Issues waiting in triage across all projects, oldest first. */
+export async function getTriageIssues(): Promise<Issue[]> {
+  const db = await trackerDb();
+  return simulate("getTriageIssues", () =>
+    db.all<IssueRow>("SELECT * FROM issues WHERE status = 'triage' AND archived_at IS NULL ORDER BY created_at, rowid").map(toIssue),
+  );
+}
+
+let nextReport = 0;
+/** Mock control: a new customer report arrives in triage. */
+export async function simulateIncomingReport(): Promise<Issue> {
+  const db = await trackerDb();
+  const [projectId, title, reporter, body] = incomingReports[nextReport++ % incomingReports.length];
+  const project = projects.find((item) => item.id === projectId)!;
+  const id = newId("tr-");
+  const now = clock.date().toISOString();
+  db.transaction(() => {
+    const { next } = db.get<{ next: number }>("SELECT next FROM counters WHERE project_id = ?", [projectId])!;
+    db.run("UPDATE counters SET next = next + 1 WHERE project_id = ?", [projectId]);
+    db.run("INSERT INTO issues VALUES (?, ?, ?, ?, ?, 'triage', 0, NULL, NULL, NULL, ?, ?)", [
+      id,
+      `${project.key}-${next}`,
+      projectId,
+      title,
+      `Reported by ${reporter}\n\n${body}`,
+      now,
+      now,
+    ]);
+    db.run("INSERT INTO issue_history VALUES (?, ?, 'support', 'created', NULL, 'triage', ?)", [newId("h-"), id, now]);
+  });
+  events.emit({ type: "issue", issueId: id });
+  return readIssue(db, id);
 }
 
 /** Mock control: a teammate moves a random open issue in the project to the next status. */

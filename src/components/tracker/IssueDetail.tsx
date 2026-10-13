@@ -93,6 +93,7 @@ export function IssueDetail({ issueRef, onClose, onUpdate, onArchive, onDelete }
             <dd className="flex items-center gap-1">
               <StatusIcon status={issue.status} />
               <select aria-label="Status" className={select} value={issue.status} onChange={(e) => onUpdate(issue, { status: e.target.value as Issue["status"] })}>
+                {issue.status === "triage" && <option value="triage">Triage</option>}
                 {STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </dd>

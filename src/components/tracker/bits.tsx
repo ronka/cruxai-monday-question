@@ -1,9 +1,9 @@
-import { PRIORITIES, STATUSES, users } from "@/data/trackerData";
+import { PRIORITIES, STATUSES, TRIAGE_STATUS, users } from "@/data/trackerData";
 import type { IssueStatus, Priority } from "@/types/tracker";
 
 export function StatusIcon({ status, size = 14 }: { status: IssueStatus; size?: number }) {
-  const meta = STATUSES.find((item) => item.id === status)!;
-  const fill = { backlog: 0, todo: 0, in_progress: 0.5, in_review: 0.75, done: 1, canceled: 1 }[status];
+  const meta = STATUSES.find((item) => item.id === status) ?? TRIAGE_STATUS;
+  const fill = { triage: 0.25, backlog: 0, todo: 0, in_progress: 0.5, in_review: 0.75, done: 1, canceled: 1 }[status];
   const r = 5;
   const c = 2 * Math.PI * r;
   return (

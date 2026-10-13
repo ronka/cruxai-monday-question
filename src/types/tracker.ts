@@ -1,4 +1,5 @@
-export type IssueStatus = "backlog" | "todo" | "in_progress" | "in_review" | "done" | "canceled";
+/** "triage" issues are incoming reports that have not been reviewed yet. */
+export type IssueStatus = "triage" | "backlog" | "todo" | "in_progress" | "in_review" | "done" | "canceled";
 /** 0 = no priority, 1 = urgent … 4 = low (Linear's convention). */
 export type Priority = 0 | 1 | 2 | 3 | 4;
 

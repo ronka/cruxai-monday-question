@@ -9,14 +9,17 @@ import {
   deleteIssue,
   failNextIssueUpdate,
   getProjectIssues,
+  getTriageIssues,
   listProjects,
   resetTrackerData,
+  simulateIncomingReport,
   simulateTeammateStatusChange,
   subscribeToTracker,
   updateIssue,
 } from "@/api/trackerApi";
 import { currentUserId, users } from "@/data/trackerData";
 import { MockControls } from "@/mock/MockControls";
+import { network } from "@/mock/network";
 import type { Issue, IssuePatch } from "@/types/tracker";
 import { Avatar } from "./bits";
 import { IssueDetail } from "./IssueDetail";
@@ -61,6 +64,7 @@ export function TrackerApp() {
     [queryClient],
   );
 
+  const triageCount = useQuery({ queryKey: ["issues", "triage"], queryFn: getTriageIssues }).data?.length;
   const projectsQuery = useQuery({ queryKey: ["projects"], queryFn: listProjects });
   const issuesQuery = useQuery({ queryKey: ["issues", projectId], queryFn: () => getProjectIssues(projectId) });
   const project = projectsQuery.data?.find((item) => item.id === projectId);
@@ -103,7 +107,13 @@ export function TrackerApp() {
             <SquarePen className="h-4 w-4" />
           </span>
         </div>
-        <span className="flex items-center gap-2 rounded px-2 py-1 text-zinc-600"><Inbox className="h-4 w-4" /> Inbox</span>
+        <span className="flex items-center gap-2 rounded px-2 py-1 text-zinc-600">
+          <Inbox className="h-4 w-4" /> Inbox
+        </span>
+        <span className="flex items-center justify-between rounded px-2 py-1 text-zinc-600" title="Triage inbox — not implemented yet">
+          <span className="flex items-center gap-2"><Inbox className="h-4 w-4 text-orange-500" /> Triage</span>
+          <span className="text-[11px] text-zinc-400">{triageCount ?? ""}</span>
+        </span>
         <span className="flex items-center gap-2 rounded px-2 py-1 text-zinc-600"><UserRound className="h-4 w-4" /> My issues</span>
         <p className="mb-1 mt-4 px-2 text-[12px] font-medium text-zinc-400">Projects</p>
         {projectsQuery.data?.map((item) => (
@@ -200,9 +210,19 @@ export function TrackerApp() {
         sections={[
           {
             title: "Teammates",
-            actions: [{ label: "Teammate advances an issue's status", run: () => simulateTeammateStatusChange(projectId) }],
+            actions: [
+              { label: "New customer report arrives in triage", run: simulateIncomingReport },
+              { label: "Teammate advances an issue's status", run: () => simulateTeammateStatusChange(projectId) },
+            ],
           },
-          { title: "Failures", actions: [{ label: "Fail next issue update", run: failNextIssueUpdate }] },
+          {
+            title: "Failures",
+            actions: [
+              { label: "Fail next issue update", run: failNextIssueUpdate },
+              { label: "Slow network (2 s latency)", run: () => network.setLatency(2000) },
+              { label: "Normal network", run: () => network.setLatency(350) },
+            ],
+          },
         ]}
         onReset={resetTrackerData}
       />

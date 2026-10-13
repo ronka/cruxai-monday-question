@@ -272,7 +272,7 @@ export const PULL = {
 
 /** Comments already published on commit 1: [fileId, line, side, author, body]. */
 export const seedComments: [string, number, "new" | "old", string, string][] = [
-  ["f-limiter", 13, "new", "yuki", "`req.ip` can be undefined behind some proxies — should we fall back to something?"],
+  ["f-limiter", 12, "new", "yuki", "`req.ip` can be undefined behind some proxies — should we fall back to something?"],
   ["f-server", 18, "new", "yuki", "Do we want limiter stats exposed on an unauthenticated health endpoint?"],
   ["f-readme", 7, "new", "mara", "Nice, thanks for documenting the headers."],
 ];

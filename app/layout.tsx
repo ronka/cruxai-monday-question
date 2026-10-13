@@ -3,8 +3,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Interview starter",
-  description: "Feature implementation interview starter.",
+  title: "Lumina — App redesign · Canvas Review",
+  description: "A Figma-style design review canvas. Interview starter.",
 };
 
 export default function RootLayout({

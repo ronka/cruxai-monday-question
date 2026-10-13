@@ -63,3 +63,28 @@ export const seedProducts: SeedProduct[] = seeds.map(([title, vendor, category, 
 export function formatMoney(cents: number): string {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
+
+export const seedCollections = [
+  { id: "col-outdoors", title: "Outdoor Gear", productIds: ["prod-3", "prod-13", "prod-14", "prod-23", "prod-28"] },
+  { id: "col-kitchen", title: "Kitchen Essentials", productIds: ["prod-6", "prod-7", "prod-18", "prod-19", "prod-26"] },
+  { id: "col-gifts", title: "Gift Ideas", productIds: ["prod-6", "prod-9", "prod-10", "prod-11", "prod-15", "prod-28"] },
+];
+
+/** The supplied test cart: [variantId, quantity]. Shipping is a flat $8.95. */
+export const seedCartLines: [string, number][] = [
+  ["var-6-2", 2],
+  ["var-3-2", 1],
+  ["var-10-1", 3],
+  ["var-19-1", 1],
+];
+export const CART_SHIPPING_CENTS = 895;
+
+const T = (iso: string) => new Date(iso).toISOString();
+export const seedDiscounts = [
+  { id: "disc-1", code: "OUTDOOR15", title: "15% off outdoor gear", kind: "product_percentage", status: "active", value: 15, collectionIds: ["col-outdoors"], minimumSubtotalCents: null, startsAt: T("2026-10-01T00:00:00Z"), endsAt: T("2026-10-31T23:59:59Z"), combinesWith: { product: false, order: true, shipping: true } },
+  { id: "disc-2", code: "KITCHEN20", title: "20% off kitchen", kind: "product_percentage", status: "active", value: 20, collectionIds: ["col-kitchen"], minimumSubtotalCents: null, startsAt: T("2026-10-10T00:00:00Z"), endsAt: T("2026-10-14T12:00:00Z"), combinesWith: { product: false, order: false, shipping: true } },
+  { id: "disc-3", code: "TAKE10", title: "$10 off orders over $100", kind: "order_amount", status: "active", value: 1000, collectionIds: [], minimumSubtotalCents: 10000, startsAt: T("2026-09-01T00:00:00Z"), endsAt: null, combinesWith: { product: true, order: false, shipping: true } },
+  { id: "disc-4", code: "SHIPFREE", title: "Free shipping", kind: "free_shipping", status: "active", value: null, collectionIds: [], minimumSubtotalCents: 5000, startsAt: T("2026-10-01T00:00:00Z"), endsAt: null, combinesWith: { product: true, order: true, shipping: false } },
+  { id: "disc-5", code: "GIFT25", title: "25% off gifts (draft)", kind: "product_percentage", status: "draft", value: 25, collectionIds: ["col-gifts"], minimumSubtotalCents: null, startsAt: null, endsAt: null, combinesWith: { product: false, order: false, shipping: false } },
+  { id: "disc-6", code: "BIGSPEND", title: "$200 off (draft, larger than most carts)", kind: "order_amount", status: "draft", value: 20000, collectionIds: [], minimumSubtotalCents: null, startsAt: null, endsAt: null, combinesWith: { product: true, order: false, shipping: true } },
+] as const;

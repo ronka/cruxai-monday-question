@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BarChart3, Home, Inbox, Megaphone, Percent, Search, Settings, Store, Tag, Users } from "lucide-react";
-import { failNextProductUpdate, resetAdminData, simulateOtherAdminEdit, subscribeToAdmin } from "@/api/adminApi";
+import { failNextDiscountSave, failNextProductUpdate, resetAdminData, simulateCartChange, simulateOtherAdminEdit, subscribeToAdmin } from "@/api/adminApi";
+import { DiscountsPage } from "./DiscountsPage";
 import { MockControls } from "@/mock/MockControls";
 import { ProductEditor } from "./ProductEditor";
 import { ProductList, type CatalogFilters } from "./ProductList";
@@ -18,9 +19,10 @@ const NAV = [
   { label: "Analytics", icon: BarChart3 },
 ];
 
-function readUrl(): { filters: CatalogFilters; product: string | null } {
+function readUrl(): { filters: CatalogFilters; product: string | null; section: string } {
   const params = new URLSearchParams(window.location.search);
   return {
+    section: params.get("section") ?? "products",
     filters: { search: params.get("q") ?? "", category: params.get("category") ?? "", page: Math.max(1, Number(params.get("page")) || 1) },
     product: params.get("product"),
   };
@@ -30,12 +32,14 @@ export function AdminApp() {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<CatalogFilters>({ search: "", category: "", page: 1 });
   const [productId, setProductId] = useState<string | null>(null);
+  const [section, setSection] = useState("products");
 
   useEffect(() => {
     const restore = () => {
       const url = readUrl();
       setFilters(url.filters);
       setProductId(url.product);
+      setSection(url.section);
     };
     restore();
     window.addEventListener("popstate", restore);
@@ -44,6 +48,9 @@ export function AdminApp() {
   useEffect(
     () =>
       subscribeToAdmin((event) => {
+        if (event.type === "cart") void queryClient.invalidateQueries({ queryKey: ["cart"] });
+        if (event.type === "discount") void queryClient.invalidateQueries({ queryKey: ["discounts"] });
+        if (event.type !== "product") return;
         void queryClient.invalidateQueries({ queryKey: ["products"] });
         void queryClient.invalidateQueries({ queryKey: ["product", event.productId] });
       }),
@@ -81,15 +88,31 @@ export function AdminApp() {
       </header>
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-t-xl bg-[#f1f1f1]">
         <nav aria-label="Admin" className="flex w-56 shrink-0 flex-col gap-0.5 bg-[#ebebeb] px-2 py-3 text-[13px] font-medium text-neutral-700">
-          {NAV.map(({ label, icon: Icon }) => (
-            <span key={label} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${label === "Products" ? "bg-white text-neutral-900 shadow-sm" : ""}`}>
-              <Icon className="h-4 w-4" /> {label}
-            </span>
-          ))}
+          {NAV.map(({ label, icon: Icon }) => {
+            const id = label.toLowerCase();
+            const linked = id === "products" || id === "discounts";
+            return (
+              <button
+                key={label}
+                type="button"
+                disabled={!linked}
+                onClick={() => {
+                  setSection(id);
+                  setProductId(null);
+                  window.history.pushState(null, "", id === "products" ? window.location.pathname : `?section=${id}`);
+                }}
+                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left ${section === id ? "bg-white text-neutral-900 shadow-sm" : ""} ${linked ? "hover:bg-white/60" : "cursor-default"}`}
+              >
+                <Icon className="h-4 w-4" /> {label}
+              </button>
+            );
+          })}
           <span className="mt-auto flex items-center gap-2 rounded-lg px-2 py-1.5"><Settings className="h-4 w-4" /> Settings</span>
         </nav>
         <main className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
-          {productId ? (
+          {section === "discounts" ? (
+            <DiscountsPage />
+          ) : productId ? (
             <ProductEditor key={productId} productId={productId} onBack={() => navigate({ product: null })} />
           ) : (
             <div className="mx-auto max-w-6xl">
@@ -106,7 +129,15 @@ export function AdminApp() {
         </main>
       </div>
       <MockControls
+        showClock
         sections={[
+          {
+            title: "Cart and discounts",
+            actions: [
+              { label: "Customer adds one more of a cart item", run: simulateCartChange },
+              { label: "Fail next discount save", run: failNextDiscountSave },
+            ],
+          },
           {
             title: "Other admins",
             actions: [

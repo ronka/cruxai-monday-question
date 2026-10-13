@@ -50,4 +50,47 @@ export interface ProductPatch {
   variants?: Record<string, { priceCents?: number; inventory?: number }>;
 }
 
-export type AdminEvent = { type: "product"; productId: string };
+export type AdminEvent = { type: "product"; productId: string } | { type: "cart" } | { type: "discount"; discountId: string };
+
+export interface Collection {
+  id: string;
+  title: string;
+  productIds: string[];
+}
+
+export interface CartLine {
+  variantId: string;
+  productId: string;
+  quantity: number;
+}
+
+export interface Cart {
+  id: string;
+  lines: CartLine[];
+  /** Integer cents before any shipping discount. */
+  shippingCents: number;
+  updatedAt: string;
+}
+
+export type DiscountKind = "product_percentage" | "order_amount" | "free_shipping";
+
+/** Stored discount record. Many fields are optional while a discount is a draft. */
+export interface Discount {
+  id: string;
+  code: string;
+  title: string;
+  kind: DiscountKind;
+  status: "draft" | "active";
+  /** Percent (0–100) for product_percentage; cents for order_amount; unused for free_shipping. */
+  value: number | null;
+  /** Collections a product discount applies to. Empty means all products. */
+  collectionIds: string[];
+  minimumSubtotalCents: number | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  /** Which other discount classes this discount may combine with. */
+  combinesWith: { product: boolean; order: boolean; shipping: boolean };
+  updatedAt: string;
+}
+
+export type DiscountInput = Omit<Discount, "id" | "updatedAt"> & { id?: string };

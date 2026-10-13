@@ -27,3 +27,13 @@ test("saves are atomic and reject stale versions", async () => {
   ).rejects.toThrow("non-negative");
   expect((await getProduct("prod-1")).variants[0].priceCents).not.toBe(1000);
 });
+
+test("cart, collections and discount records are supplied", async () => {
+  const { getCart, listCollections, listDiscounts, saveDiscount, setCartQuantity } = await import("@/api/adminApi");
+  expect((await getCart()).lines).toHaveLength(4);
+  expect(await listCollections()).toHaveLength(3);
+  const discounts = await listDiscounts();
+  expect(discounts.filter((d) => d.status === "draft")).toHaveLength(2);
+  await expect(saveDiscount({ ...discounts[0], id: undefined })).rejects.toThrow("already used");
+  expect((await setCartQuantity("var-6-2", 0)).lines).toHaveLength(3);
+});

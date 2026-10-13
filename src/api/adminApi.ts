@@ -1,9 +1,9 @@
-import { CATEGORIES, seedProducts } from "@/data/adminData";
+import { CART_SHIPPING_CENTS, CATEGORIES, seedCartLines, seedCollections, seedDiscounts, seedProducts } from "@/data/adminData";
 import { clock } from "@/mock/clock";
-import { createEmitter } from "@/mock/events";
+import { createEmitter, newId } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
 import { openDatabase, type LocalDatabase } from "@/mock/sqlite";
-import type { AdminEvent, Product, ProductPage, ProductPatch, ProductQuery, ProductStatus, Variant } from "@/types/admin";
+import type { AdminEvent, Cart, Collection, Discount, DiscountInput, Product, ProductPage, ProductPatch, ProductQuery, ProductStatus, Variant } from "@/types/admin";
 
 // Browser-local mock server backed by SQLite. Data persists across refreshes;
 // "Reset local data" in the mock controls restores the fixtures.
@@ -27,6 +27,13 @@ CREATE TABLE variants (
   price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
   inventory INTEGER NOT NULL CHECK (inventory >= 0)
 );
+CREATE TABLE collections (id TEXT PRIMARY KEY, title TEXT NOT NULL, product_ids TEXT NOT NULL);
+CREATE TABLE cart_lines (
+  variant_id TEXT PRIMARY KEY REFERENCES variants(id),
+  quantity INTEGER NOT NULL CHECK (quantity > 0)
+);
+CREATE TABLE cart_meta (id TEXT PRIMARY KEY, shipping_cents INTEGER NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE discounts (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, data TEXT NOT NULL, updated_at TEXT NOT NULL);
 `;
 
 export function adminDb(): Promise<LocalDatabase> {
@@ -58,6 +65,12 @@ export function adminDb(): Promise<LocalDatabase> {
           ]),
         );
       }
+      for (const collection of seedCollections)
+        db.run("INSERT INTO collections VALUES (?, ?, ?)", [collection.id, collection.title, JSON.stringify(collection.productIds)]);
+      for (const [variantId, quantity] of seedCartLines) db.run("INSERT INTO cart_lines VALUES (?, ?)", [variantId, quantity]);
+      db.run("INSERT INTO cart_meta VALUES ('cart', ?, ?)", [CART_SHIPPING_CENTS, now]);
+      for (const discount of seedDiscounts)
+        db.run("INSERT INTO discounts VALUES (?, ?, ?, ?)", [discount.id, discount.code, JSON.stringify(discount), now]);
     },
   });
 }
@@ -199,6 +212,107 @@ export async function updateProduct(id: string, patch: ProductPatch, expectedVer
   return simulate("updateProduct", () => applyPatch(db, id, patch, expectedVersion));
 }
 
+export async function listCollections(): Promise<Collection[]> {
+  const db = await adminDb();
+  return simulate("listCollections", () =>
+    db.all<{ id: string; title: string; product_ids: string }>("SELECT * FROM collections ORDER BY title").map((row) => ({
+      id: row.id,
+      title: row.title,
+      productIds: JSON.parse(row.product_ids),
+    })),
+  );
+}
+
+function readCart(db: LocalDatabase): Cart {
+  const meta = db.get<{ shipping_cents: number; updated_at: string }>("SELECT * FROM cart_meta WHERE id = 'cart'")!;
+  const lines = db.all<{ variant_id: string; product_id: string; quantity: number }>(
+    "SELECT c.variant_id, v.product_id, c.quantity FROM cart_lines c JOIN variants v ON v.id = c.variant_id ORDER BY c.rowid",
+  );
+  return {
+    id: "cart",
+    lines: lines.map((line) => ({ variantId: line.variant_id, productId: line.product_id, quantity: line.quantity })),
+    shippingCents: meta.shipping_cents,
+    updatedAt: meta.updated_at,
+  };
+}
+
+/** The supplied test cart. Prices come from the current product data. */
+export async function getCart(): Promise<Cart> {
+  const db = await adminDb();
+  return simulate("getCart", () => readCart(db));
+}
+
+/** Sets a line's quantity; 0 removes the line. */
+export async function setCartQuantity(variantId: string, quantity: number): Promise<Cart> {
+  const db = await adminDb();
+  return simulate("setCartQuantity", () => {
+    if (!Number.isInteger(quantity) || quantity < 0) throw new Error("Quantity must be a whole number");
+    if (!db.get("SELECT id FROM variants WHERE id = ?", [variantId])) throw new Error("Variant not found");
+    if (quantity === 0) db.run("DELETE FROM cart_lines WHERE variant_id = ?", [variantId]);
+    else db.run("INSERT INTO cart_lines VALUES (?, ?) ON CONFLICT(variant_id) DO UPDATE SET quantity = excluded.quantity", [variantId, quantity]);
+    db.run("UPDATE cart_meta SET updated_at = ? WHERE id = 'cart'", [clock.date().toISOString()]);
+    events.emit({ type: "cart" });
+    return readCart(db);
+  });
+}
+
+const toDiscount = (row: { data: string; updated_at: string }): Discount => ({ ...JSON.parse(row.data), updatedAt: row.updated_at });
+
+export async function listDiscounts(): Promise<Discount[]> {
+  const db = await adminDb();
+  return simulate("listDiscounts", () => db.all<{ data: string; updated_at: string }>("SELECT * FROM discounts ORDER BY rowid").map(toDiscount));
+}
+
+export async function getDiscount(id: string): Promise<Discount> {
+  const db = await adminDb();
+  return simulate("getDiscount", () => {
+    const row = db.get<{ data: string; updated_at: string }>("SELECT * FROM discounts WHERE id = ?", [id]);
+    if (!row) throw new Error("Discount not found");
+    return toDiscount(row);
+  });
+}
+
+/**
+ * Creates or replaces a discount record. Only storage rules are enforced here
+ * (unique code, known kind); business validation belongs to the editor.
+ */
+export async function saveDiscount(input: DiscountInput): Promise<Discount> {
+  const db = await adminDb();
+  return simulate("saveDiscount", () => {
+    const code = input.code.trim().toUpperCase();
+    if (!code) throw new Error("Code is required");
+    if (!["product_percentage", "order_amount", "free_shipping"].includes(input.kind)) throw new Error("Unknown discount kind");
+    const id = input.id ?? newId("disc-");
+    const clash = db.get<{ id: string }>("SELECT id FROM discounts WHERE code = ? AND id != ?", [code, id]);
+    if (clash) throw new Error(`Code ${code} is already used`);
+    const record = { ...input, id, code };
+    db.run("INSERT INTO discounts VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET code = excluded.code, data = excluded.data, updated_at = excluded.updated_at", [
+      id,
+      code,
+      JSON.stringify(record),
+      clock.date().toISOString(),
+    ]);
+    events.emit({ type: "discount", discountId: id });
+    return toDiscount(db.get<{ data: string; updated_at: string }>("SELECT * FROM discounts WHERE id = ?", [id])!);
+  });
+}
+
+export async function deleteDiscount(id: string): Promise<void> {
+  const db = await adminDb();
+  return simulate("deleteDiscount", () => {
+    db.run("DELETE FROM discounts WHERE id = ?", [id]);
+    events.emit({ type: "discount", discountId: id });
+  });
+}
+
+/** Mock control: a customer adds one more of a random cart line. */
+export async function simulateCartChange(): Promise<void> {
+  const db = await adminDb();
+  const line = db.get<{ variant_id: string; quantity: number }>("SELECT * FROM cart_lines ORDER BY RANDOM() LIMIT 1");
+  if (!line) throw new Error("Cart is empty");
+  await setCartQuantity(line.variant_id, line.quantity + 1);
+}
+
 /** Mock control: another admin edits a product (bumps its version). */
 export async function simulateOtherAdminEdit(id?: string): Promise<Product> {
   const db = await adminDb();
@@ -213,6 +327,11 @@ export function failNextProductUpdate(): void {
   network.failNext("updateProduct");
 }
 
+export function failNextDiscountSave(): void {
+  network.failNext("saveDiscount");
+}
+
 export async function resetAdminData(): Promise<void> {
   await (await adminDb()).reset();
+  clock.reset();
 }

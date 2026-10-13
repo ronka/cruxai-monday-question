@@ -3,8 +3,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Interview starter",
-  description: "Feature implementation interview starter.",
+  title: "Helpdesk — Inbox",
+  description: "An Intercom-style support inbox. Interview starter.",
 };
 
 export default function RootLayout({

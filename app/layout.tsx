@@ -3,8 +3,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Interview starter",
-  description: "Feature implementation interview starter.",
+  title: "Products · Fern & Stone",
+  description: "A Shopify-style store admin. Interview starter.",
 };
 
 export default function RootLayout({

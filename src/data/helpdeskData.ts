@@ -1,4 +1,4 @@
-import type { Agent, Customer } from "@/types/helpdesk";
+import type { Agent, Customer, Tag, Team } from "@/types/helpdesk";
 
 export const agents: Agent[] = [
   { id: "olivia", name: "Olivia Park", initials: "OP", color: "#286efa" },
@@ -8,14 +8,14 @@ export const agents: Agent[] = [
 export const DEFAULT_AGENT_ID = "olivia";
 
 export const customers: Customer[] = [
-  { id: "cu-1", name: "Hannah Lee", email: "hannah@brightloop.io", company: "Brightloop", plan: "Pro", location: "Toronto, CA", color: "#7c3aed" },
-  { id: "cu-2", name: "Tomás Rivera", email: "tomas@cartwheel.mx", company: "Cartwheel", plan: "Enterprise", location: "Mexico City, MX", color: "#db2777" },
-  { id: "cu-3", name: "Grace Okoye", email: "grace@finchpay.ng", company: "FinchPay", plan: "Free", location: "Lagos, NG", color: "#0891b2" },
-  { id: "cu-4", name: "Lukas Weber", email: "lukas@oakline.de", company: "Oakline", plan: "Pro", location: "Berlin, DE", color: "#65a30d" },
-  { id: "cu-5", name: "Mei Chen", email: "mei@harborly.com", company: "Harborly", plan: "Enterprise", location: "Singapore, SG", color: "#ea580c" },
-  { id: "cu-6", name: "Aarav Shah", email: "aarav@quillstack.in", company: "Quillstack", plan: "Free", location: "Pune, IN", color: "#4f46e5" },
-  { id: "cu-7", name: "Elena Rossi", email: "elena@verdant.it", company: "Verdant", plan: "Pro", location: "Milan, IT", color: "#be123c" },
-  { id: "cu-8", name: "Noah Williams", email: "noah@ridgeback.co", company: "Ridgeback", plan: "Pro", location: "Denver, US", color: "#0f766e" },
+  { id: "cu-1", name: "Hannah Lee", email: "hannah@brightloop.io", company: "Brightloop", plan: "Pro", location: "Toronto, CA", color: "#7c3aed", attributes: { first_name: "Hannah", account_manager: "Sana Iqbal", renewal_date: "2027-01-15", order_id: null } },
+  { id: "cu-2", name: "Tomás Rivera", email: "tomas@cartwheel.mx", company: "Cartwheel", plan: "Enterprise", location: "Mexico City, MX", color: "#db2777", attributes: { first_name: "Tomás", account_manager: "Marcus Webb", renewal_date: "2026-11-30", order_id: "ORD-55120" } },
+  { id: "cu-3", name: "Grace Okoye", email: "grace@finchpay.ng", company: "FinchPay", plan: "Free", location: "Lagos, NG", color: "#0891b2", attributes: { first_name: "Grace", account_manager: null, renewal_date: null, order_id: "ORD-55311" } },
+  { id: "cu-4", name: "Lukas Weber", email: "lukas@oakline.de", company: "Oakline", plan: "Pro", location: "Berlin, DE", color: "#65a30d", attributes: { first_name: "Lukas", account_manager: "Olivia Park", renewal_date: "2027-03-02", order_id: null } },
+  { id: "cu-5", name: "Mei Chen", email: "mei@harborly.com", company: "Harborly", plan: "Enterprise", location: "Singapore, SG", color: "#ea580c", attributes: { first_name: "Mei", account_manager: "Sana Iqbal", renewal_date: "2026-12-12", order_id: "ORD-55402" } },
+  { id: "cu-6", name: "Aarav Shah", email: "aarav@quillstack.in", company: "Quillstack", plan: "Free", location: "Pune, IN", color: "#4f46e5", attributes: { first_name: null, account_manager: null, renewal_date: null, order_id: null } },
+  { id: "cu-7", name: "Elena Rossi", email: "elena@verdant.it", company: "Verdant", plan: "Pro", location: "Milan, IT", color: "#be123c", attributes: { first_name: "Elena", account_manager: "Olivia Park", renewal_date: "2027-02-20", order_id: null } },
+  { id: "cu-8", name: "Noah Williams", email: "noah@ridgeback.co", company: "Ridgeback", plan: "Pro", location: "Denver, US", color: "#0f766e", attributes: { first_name: "Noah", account_manager: "Marcus Webb", renewal_date: "2027-04-01", order_id: "ORD-54980" } },
 ];
 
 type Thread = { customer: string; subject: string; status: "open" | "closed"; minutesAgo: number; messages: [kind: "customer" | "agent", author: string, body: string][] };
@@ -65,4 +65,31 @@ export const incomingSamples = [
   "I attached a screenshot — does that help?",
   "Actually, it's happening again.",
   "Could someone call me about this today?",
+];
+
+export const tags: Tag[] = [
+  { id: "t-bug", name: "Bug", color: "#dc2626" },
+  { id: "t-billing", name: "Billing", color: "#16a34a" },
+  { id: "t-feature", name: "Feature request", color: "#7c3aed" },
+  { id: "t-vip", name: "VIP", color: "#d97706" },
+  { id: "t-sso", name: "SSO", color: "#0891b2" },
+];
+
+export const teams: Team[] = [
+  { id: "team-billing", name: "Billing", memberIds: ["sana"] },
+  { id: "team-tech", name: "Technical support", memberIds: ["marcus", "olivia"] },
+  { id: "team-success", name: "Customer success", memberIds: ["olivia", "sana"] },
+];
+
+/** Seeded [priority, tagIds] per conversation index. */
+export const seedConversationMeta: [string, string[]][] = [
+  ["medium", ["t-bug"]],
+  ["urgent", ["t-sso", "t-vip"]],
+  ["low", ["t-billing"]],
+  ["high", ["t-bug"]],
+  ["medium", ["t-billing", "t-vip"]],
+  ["none", []],
+  ["low", ["t-feature"]],
+  ["none", []],
+  ["none", ["t-feature"]],
 ];

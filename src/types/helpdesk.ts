@@ -13,6 +13,22 @@ export interface Customer {
   plan: "Free" | "Pro" | "Enterprise";
   location: string;
   color: string;
+  /** Custom attributes usable as placeholders, e.g. {{first_name}}. Null = missing. */
+  attributes: Record<string, string | null>;
+}
+
+export type Priority = "none" | "low" | "medium" | "high" | "urgent";
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  memberIds: string[];
 }
 
 export type ConversationStatus = "open" | "closed";
@@ -29,6 +45,8 @@ export interface Conversation {
   preview: string;
   /** True when the latest customer message is newer than this agent's last read. */
   unread: boolean;
+  priority: Priority;
+  tagIds: string[];
   /** Increments on every change. */
   version: number;
 }

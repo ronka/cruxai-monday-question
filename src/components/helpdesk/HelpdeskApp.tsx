@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, CheckCircle2, Inbox, Mail, MapPin, RotateCcw, Search, Send } from "lucide-react";
 import {
+  addTag,
   countConversations,
+  getDraft,
+  removeTag,
+  saveDraft,
+  setPriority,
   failNextReply,
   getConversation,
   getCustomer,
@@ -19,9 +24,10 @@ import {
   simulateNewConversation,
   subscribeToHelpdesk,
 } from "@/api/helpdeskApi";
-import { agents, customers, DEFAULT_AGENT_ID } from "@/data/helpdeskData";
+import { agents, customers, DEFAULT_AGENT_ID, tags } from "@/data/helpdeskData";
+import { network } from "@/mock/network";
 import { MockControls, useMockClock } from "@/mock/MockControls";
-import type { ConversationStatus } from "@/types/helpdesk";
+import type { ConversationStatus, Priority } from "@/types/helpdesk";
 
 const timeAgo = (iso: string, now: number) => {
   const minutes = Math.max(0, Math.round((now - Date.parse(iso)) / 60000));
@@ -71,6 +77,23 @@ export function HelpdeskApp() {
   const customer = useQuery({ queryKey: ["customer", conversation.data?.customerId], queryFn: () => getCustomer(conversation.data!.customerId), enabled: !!conversation.data });
   const now = useMockClock();
 
+  // Drafts are saved per agent and conversation, so they survive refreshes.
+  useEffect(() => {
+    if (!selectedId) return;
+    let active = true;
+    void getDraft(selectedId, agentId).then((body) => active && setDrafts((d) => ({ ...d, [`${agentId}:${selectedId}`]: d[`${agentId}:${selectedId}`] ?? body })));
+    return () => {
+      active = false;
+    };
+  }, [selectedId, agentId]);
+  const draftKey = selectedId ? `${agentId}:${selectedId}` : "";
+  const draft = drafts[draftKey] ?? "";
+  useEffect(() => {
+    if (!selectedId || drafts[draftKey] === undefined) return;
+    const timer = window.setTimeout(() => void saveDraft(selectedId, agentId, drafts[draftKey]), 400);
+    return () => window.clearTimeout(timer);
+  }, [drafts, draftKey, selectedId, agentId]);
+
   useEffect(() => {
     if (selectedId && conversation.data?.unread) void markRead(selectedId, agentId);
   }, [selectedId, agentId, conversation.data?.unread]);
@@ -85,12 +108,12 @@ export function HelpdeskApp() {
   }
 
   async function reply() {
-    if (!selectedId || !drafts[selectedId]?.trim()) return;
+    if (!selectedId || !draft.trim()) return;
     setSending(true);
     setError("");
     try {
-      await sendReply({ conversationId: selectedId, agentId, body: drafts[selectedId], clientId: crypto.randomUUID() });
-      setDrafts((d) => ({ ...d, [selectedId]: "" }));
+      await sendReply({ conversationId: selectedId, agentId, body: draft, clientId: crypto.randomUUID() });
+      setDrafts((d) => ({ ...d, [draftKey]: "" }));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -158,6 +181,30 @@ export function HelpdeskApp() {
               <div>
                 <h2 className="font-semibold">{conversation.data?.subject ?? "…"}</h2>
                 <p className="text-[12px] text-zinc-500">{customer.data?.name} · {conversation.data?.status}</p>
+                {conversation.data && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12px]">
+                    <select
+                      aria-label="Priority"
+                      className="rounded-md border border-zinc-200 px-1.5 py-0.5"
+                      value={conversation.data.priority}
+                      onChange={(e) => void setPriority(conversation.data!.id, e.target.value as Priority, agentId).catch((c) => setError((c as Error).message))}
+                    >
+                      {["none", "low", "medium", "high", "urgent"].map((p) => <option key={p} value={p}>Priority: {p}</option>)}
+                    </select>
+                    {conversation.data.tagIds.map((id) => {
+                      const tag = tags.find((t) => t.id === id)!;
+                      return (
+                        <button key={id} type="button" title="Remove tag" onClick={() => void removeTag(conversation.data!.id, id, agentId)} className="rounded-full px-2 py-0.5 text-white" style={{ background: tag.color }}>
+                          {tag.name} ×
+                        </button>
+                      );
+                    })}
+                    <select aria-label="Add tag" className="rounded-md border border-dashed border-zinc-300 px-1.5 py-0.5 text-zinc-500" value="" onChange={(e) => e.target.value && void addTag(conversation.data!.id, e.target.value, agentId).catch((c) => setError((c as Error).message))}>
+                      <option value="">+ Tag</option>
+                      {tags.filter((t) => !conversation.data!.tagIds.includes(t.id)).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
               {conversation.data && (
                 <button
@@ -191,12 +238,12 @@ export function HelpdeskApp() {
                   aria-label="Reply"
                   placeholder="Reply to the customer…"
                   className="h-24 w-full resize-none rounded-xl p-3 outline-none"
-                  value={drafts[selectedId] ?? ""}
-                  onChange={(e) => setDrafts((d) => ({ ...d, [selectedId]: e.target.value }))}
+                  value={draft}
+                  onChange={(e) => setDrafts((d) => ({ ...d, [draftKey]: e.target.value }))}
                   onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void reply(); }}
                 />
                 <div className="flex justify-end px-3 pb-2">
-                  <button type="submit" disabled={sending || !drafts[selectedId]?.trim()} className="flex items-center gap-1.5 rounded-lg bg-[#286efa] px-3 py-1.5 font-medium text-white disabled:opacity-40">
+                  <button type="submit" disabled={sending || !draft.trim()} className="flex items-center gap-1.5 rounded-lg bg-[#286efa] px-3 py-1.5 font-medium text-white disabled:opacity-40">
                     <Send className="h-4 w-4" /> {sending ? "Sending…" : "Send"}
                   </button>
                 </div>
@@ -214,6 +261,15 @@ export function HelpdeskApp() {
               <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> {customer.data.email}</div>
               <div className="flex items-center gap-2"><Building2 className="h-4 w-4" /> {customer.data.company}</div>
               <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {customer.data.location}</div>
+            </dl>
+            <h3 className="mb-2 mt-6 text-[12px] font-semibold uppercase tracking-wide text-zinc-500">Attributes</h3>
+            <dl className="space-y-1.5 text-[13px]">
+              {Object.entries(customer.data.attributes).map(([key, value]) => (
+                <div key={key} className="flex justify-between gap-2">
+                  <dt className="font-mono text-[12px] text-zinc-500">{key}</dt>
+                  <dd className={value ? "text-zinc-800" : "italic text-zinc-400"}>{value ?? "missing"}</dd>
+                </div>
+              ))}
             </dl>
           </>
         ) : (
@@ -235,7 +291,16 @@ export function HelpdeskApp() {
                 : []),
             ],
           },
-          { title: "Failures", actions: [{ label: "Fail next reply", run: failNextReply }] },
+          {
+            title: "Failures",
+            actions: [
+              { label: "Fail next reply", run: failNextReply },
+              { label: "Lose next reply response (reply still sends)", run: () => network.loseNextResponse("sendReply") },
+              { label: "Fail next add tag", run: () => network.failNext("addTag") },
+              { label: "Fail next priority change", run: () => network.failNext("setPriority") },
+              { label: "Fail next close/reopen", run: () => network.failNext("setStatus") },
+            ],
+          },
         ]}
         onReset={resetHelpdeskData}
       />

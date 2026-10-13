@@ -1,9 +1,9 @@
-import { customers, incomingSamples, seedThreads } from "@/data/helpdeskData";
+import { customers, incomingSamples, seedConversationMeta, seedThreads, tags, teams } from "@/data/helpdeskData";
 import { clock, MINUTE } from "@/mock/clock";
 import { createEmitter, newId } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
 import { openDatabase, type LocalDatabase } from "@/mock/sqlite";
-import type { Conversation, ConversationStatus, Customer, HelpdeskEvent, Message } from "@/types/helpdesk";
+import type { Conversation, ConversationStatus, Customer, HelpdeskEvent, Message, Priority, Tag, Team } from "@/types/helpdesk";
 
 // Browser-local mock server backed by SQLite. Data persists across refreshes;
 // "Reset local data" in the mock controls restores the fixtures. Every agent
@@ -15,7 +15,16 @@ CREATE TABLE conversations (
   subject TEXT NOT NULL,
   status TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  version INTEGER NOT NULL DEFAULT 1
+  version INTEGER NOT NULL DEFAULT 1,
+  priority TEXT NOT NULL DEFAULT 'none',
+  tag_ids TEXT NOT NULL DEFAULT '[]'
+);
+CREATE TABLE drafts (
+  conversation_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (conversation_id, agent_id)
 );
 CREATE TABLE messages (
   id TEXT PRIMARY KEY,
@@ -44,7 +53,8 @@ export function helpdeskDb(): Promise<LocalDatabase> {
       seedThreads.forEach((thread, index) => {
         const id = `conv-${index + 1}`;
         const start = now - thread.minutesAgo * MINUTE - thread.messages.length * 3 * MINUTE;
-        db.run("INSERT INTO conversations VALUES (?, ?, ?, ?, ?, 1)", [id, thread.customer, thread.subject, thread.status, new Date(start).toISOString()]);
+        const [priority, tagIds] = seedConversationMeta[index] ?? ["none", []];
+        db.run("INSERT INTO conversations VALUES (?, ?, ?, ?, ?, 1, ?, ?)", [id, thread.customer, thread.subject, thread.status, new Date(start).toISOString(), priority, JSON.stringify(tagIds)]);
         thread.messages.forEach(([kind, author, body], m) => {
           const at = new Date(now - thread.minutesAgo * MINUTE - (thread.messages.length - 1 - m) * 3 * MINUTE).toISOString();
           db.run("INSERT INTO messages VALUES (?, ?, ?, ?, ?, ?)", [`${id}-m${m + 1}`, id, kind, author, body, at]);
@@ -69,6 +79,8 @@ type ConversationRow = {
   status: ConversationStatus;
   created_at: string;
   version: number;
+  priority: Priority;
+  tag_ids: string;
   last_message_at: string;
   preview: string;
   last_customer_at: string | null;
@@ -92,6 +104,8 @@ const toConversation = (row: ConversationRow): Conversation => ({
   lastMessageAt: row.last_message_at,
   preview: row.preview,
   unread: !!row.last_customer_at && (!row.read_at || row.last_customer_at > row.read_at),
+  priority: row.priority,
+  tagIds: JSON.parse(row.tag_ids),
   version: row.version,
 });
 
@@ -202,7 +216,7 @@ export async function simulateNewConversation(): Promise<string> {
   const customer = customers[Math.floor(Math.random() * customers.length)];
   const id = newId("conv-");
   clock.advance(MINUTE);
-  db.run("INSERT INTO conversations VALUES (?, ?, ?, 'open', ?, 1)", [id, customer.id, "New question", clock.date().toISOString()]);
+  db.run("INSERT INTO conversations VALUES (?, ?, ?, 'open', ?, 1, 'none', '[]')", [id, customer.id, "New question", clock.date().toISOString()]);
   insertMessage(db, id, "customer", customer.id, "Hi there — quick question about my account.");
   return id;
 }
@@ -212,6 +226,66 @@ export async function simulateAgentReply(conversationId: string, agentId: string
   const db = await helpdeskDb();
   clock.advance(MINUTE);
   return insertMessage(db, conversationId, "agent", agentId, "Looking into this now.");
+}
+
+export async function listTags(): Promise<Tag[]> {
+  return simulate("listTags", () => tags);
+}
+
+export async function listTeams(): Promise<Team[]> {
+  return simulate("listTeams", () => teams);
+}
+
+function touch(db: LocalDatabase, conversationId: string) {
+  db.run("UPDATE conversations SET version = version + 1 WHERE id = ?", [conversationId]);
+  events.emit({ type: "conversation", conversationId });
+}
+
+/** Adds a tag (no-op if already present). */
+export async function addTag(conversationId: string, tagId: string, agentId: string): Promise<Conversation> {
+  const db = await helpdeskDb();
+  return simulate("addTag", () => {
+    const conversation = readConversation(db, conversationId, agentId);
+    if (!tags.some((tag) => tag.id === tagId)) throw new Error("Unknown tag");
+    if (!conversation.tagIds.includes(tagId)) {
+      db.run("UPDATE conversations SET tag_ids = ? WHERE id = ?", [JSON.stringify([...conversation.tagIds, tagId]), conversationId]);
+      touch(db, conversationId);
+    }
+    return readConversation(db, conversationId, agentId);
+  });
+}
+
+export async function removeTag(conversationId: string, tagId: string, agentId: string): Promise<Conversation> {
+  const db = await helpdeskDb();
+  return simulate("removeTag", () => {
+    const conversation = readConversation(db, conversationId, agentId);
+    db.run("UPDATE conversations SET tag_ids = ? WHERE id = ?", [JSON.stringify(conversation.tagIds.filter((id) => id !== tagId)), conversationId]);
+    touch(db, conversationId);
+    return readConversation(db, conversationId, agentId);
+  });
+}
+
+export async function setPriority(conversationId: string, priority: Priority, agentId: string): Promise<Conversation> {
+  const db = await helpdeskDb();
+  return simulate("setPriority", () => {
+    readConversation(db, conversationId, agentId);
+    if (!["none", "low", "medium", "high", "urgent"].includes(priority)) throw new Error("Unknown priority");
+    db.run("UPDATE conversations SET priority = ? WHERE id = ?", [priority, conversationId]);
+    touch(db, conversationId);
+    return readConversation(db, conversationId, agentId);
+  });
+}
+
+/** This agent's saved reply draft for a conversation ("" if none). */
+export async function getDraft(conversationId: string, agentId: string): Promise<string> {
+  const db = await helpdeskDb();
+  return db.get<{ body: string }>("SELECT body FROM drafts WHERE conversation_id = ? AND agent_id = ?", [conversationId, agentId])?.body ?? "";
+}
+
+export async function saveDraft(conversationId: string, agentId: string, body: string): Promise<void> {
+  const db = await helpdeskDb();
+  if (!body) db.run("DELETE FROM drafts WHERE conversation_id = ? AND agent_id = ?", [conversationId, agentId]);
+  else db.run("INSERT INTO drafts VALUES (?, ?, ?, ?) ON CONFLICT(conversation_id, agent_id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at", [conversationId, agentId, body, clock.date().toISOString()]);
 }
 
 export function failNextReply(): void {

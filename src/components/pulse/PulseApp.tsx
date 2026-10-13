@@ -108,6 +108,7 @@ export function PulseApp() {
               { label: "Fail the next widget query", run: failNextQuery },
               { label: "Slow queries (1.5 s + jitter)", run: () => network.setLatency(1500) },
               { label: "Normal query speed", run: () => network.setLatency(350) },
+              { label: "Fail the next tag-values lookup", run: () => network.failNext("getTagValues") },
             ],
           },
         ]}

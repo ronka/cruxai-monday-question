@@ -3,7 +3,7 @@ import { clock, DAY, MINUTE } from "@/mock/clock";
 import { createEmitter } from "@/mock/events";
 import { delay, network, simulate } from "@/mock/network";
 import { openDatabase, type LocalDatabase } from "@/mock/sqlite";
-import type { Aggregation, Dashboard, MetricName, MetricQuery, MetricResult, Series, Widget } from "@/types/pulse";
+import type { Aggregation, Dashboard, MetricName, MetricQuery, MetricResult, Series, TagFilter, Widget } from "@/types/pulse";
 
 // Browser-local mock server. Metrics are generated deterministically from
 // (metric, tags, time), so any window can be queried. Dashboards persist in
@@ -18,9 +18,18 @@ function noise(seed: string): number {
   return ((h >>> 0) % 10_000) / 10_000;
 }
 
-const SERVICE_SCALE: Record<string, number> = { api: 1, web: 0.8, worker: 0.35, billing: 0.15 };
+const SERVICE_SCALE: Record<string, number> = { api: 1, web: 0.8, worker: 0.35, billing: 0.15, search: 0.5, "legacy-cron": 0.05 };
 const ENV_SCALE: Record<string, number> = { prod: 1, staging: 0.08 };
-const REGION_SCALE: Record<string, number> = { "us-east-1": 0.6, "eu-west-1": 0.4 };
+const REGION_SCALE: Record<string, number> = { "us-east-1": 0.6, "eu-west-1": 0.4, "ap-south-1": 0.25 };
+
+/** Whether a tag combination reports data at time `t` (see TAGS notes in pulseData). */
+export function exists(env: string, service: string, region: string, t: number): boolean {
+  if (service === "billing" && env !== "prod") return false;
+  if (service === "search" && env !== "staging") return false;
+  if (service === "legacy-cron" && (env !== "prod" || t >= DEFAULT_NOW() - 2 * DAY)) return false;
+  if (region === "ap-south-1" && t < DEFAULT_NOW() - 6 * 60 * MINUTE) return false;
+  return true;
+}
 
 /**
  * One raw sample for a single tag combination at minute `t`, or null when the
@@ -29,6 +38,7 @@ const REGION_SCALE: Record<string, number> = { "us-east-1": 0.6, "eu-west-1": 0.
  */
 export function sample(metric: MetricName, env: string, service: string, region: string, t: number): number | null {
   const minute = Math.floor(t / MINUTE) * MINUTE;
+  if (!exists(env, service, region, minute)) return null;
   const hourOfDay = new Date(minute).getUTCHours() + new Date(minute).getUTCMinutes() / 60;
   if (service === "worker" && region === "eu-west-1" && hourOfDay >= 3 && hourOfDay < 3 + 40 / 60) return null;
   const daily = 1 + 0.35 * Math.sin(((hourOfDay - 9) / 24) * 2 * Math.PI);
@@ -98,7 +108,36 @@ export function evaluate(query: MetricQuery): MetricResult {
     }
     return { label, points };
   });
-  return { query, stepMs, series };
+  // Groups whose tag value never reported in this window are omitted.
+  return { query, stepMs, series: series.filter((s) => s.points.some((p) => p.v !== null)) };
+}
+
+/**
+ * Tag values that have data in [from, to), optionally narrowed by other tag
+ * filters (e.g. services that exist in env "staging"). Sorted by name.
+ */
+export function tagValuesIn(tag: keyof typeof TAGS, window: { from: number; to: number }, filters: TagFilter = {}): string[] {
+  const step = Math.max(MINUTE, Math.round((window.to - window.from) / 240 / MINUTE) * MINUTE);
+  const pick = (key: keyof typeof TAGS) => (key !== tag && filters[key]?.length ? filters[key]! : TAGS[key]);
+  const found = new Set<string>();
+  for (const env of pick("env"))
+    for (const service of pick("service"))
+      for (const region of pick("region")) {
+        const value = { env, service, region }[tag];
+        if (found.has(value)) continue;
+        for (let t = window.from; t < Math.min(window.to, clock.now() + 1); t += step)
+          if (t >= DEFAULT_NOW() - RETENTION_MS && exists(env, service, region, t)) {
+            found.add(value);
+            break;
+          }
+      }
+  return [...found].sort();
+}
+
+/** Async version of `tagValuesIn`, with the same latency and fault injection as metric queries. */
+export async function getTagValues(tag: keyof typeof TAGS, window: { from: number; to: number }, filters: TagFilter = {}): Promise<string[]> {
+  await delay(Math.round(Math.random() * 400));
+  return simulate("getTagValues", () => tagValuesIn(tag, window, filters));
 }
 
 /**

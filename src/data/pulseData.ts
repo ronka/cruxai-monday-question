@@ -11,9 +11,18 @@ export const METRICS: MetricInfo[] = [
 
 export const TAGS = {
   env: ["prod", "staging"],
-  service: ["api", "web", "worker", "billing"],
-  region: ["us-east-1", "eu-west-1"],
+  service: ["api", "web", "worker", "billing", "search", "legacy-cron"],
+  region: ["us-east-1", "eu-west-1", "ap-south-1"],
 };
+
+/**
+ * Which tag values report data, and when (relative to the mock clock's start,
+ * Oct 13 09:00 UTC):
+ * - billing runs only in prod; search runs only in staging
+ * - legacy-cron (prod) was decommissioned 2 days ago
+ * - ap-south-1 came online 6 hours ago
+ */
+export const TAG_AVAILABILITY_NOTES = "see pulseApi.exists()";
 
 export const CURRENT_USER = "Ada Nwosu";
 

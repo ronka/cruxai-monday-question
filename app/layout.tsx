@@ -3,8 +3,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Interview starter",
-  description: "Feature implementation interview starter.",
+  title: "Ledger — Lumen Labs",
+  description: "A Notion-style database. Interview starter.",
 };
 
 export default function RootLayout({

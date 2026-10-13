@@ -32,6 +32,10 @@ const seeds: Seed[] = [
   { title: "Weekly planning", day: -6, start: [9, 30], minutes: 60, color: 0, attendees: [a("marco@fieldnotes.app"), a("aisha@fieldnotes.app")] },
   { title: "Hiring sync", day: 16, start: [13, 0], minutes: 30, color: 2, organizer: "aisha@fieldnotes.app", attendees: [a("aisha@fieldnotes.app"), a(OWNER.email, "accepted")] },
   { title: "Flight to Lisbon", day: 20, start: [18, 45], minutes: 7 * 60, color: 5, location: "JFK T1" },
+  // Around the New York DST change (Nov 1, 2026).
+  { title: "Workshop", day: 22, start: [10, 0], minutes: 120, color: 2 },
+  { title: "Weekly planning", day: 22, start: [9, 30], minutes: 60, color: 0, attendees: [a("marco@fieldnotes.app"), a("aisha@fieldnotes.app")] },
+  { title: "Late call with Sydney office", day: 23, start: [18, 0], minutes: 60, color: 4 },
 ];
 
 export function seedEvents() {

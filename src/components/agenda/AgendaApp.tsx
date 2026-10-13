@@ -11,6 +11,7 @@ import {
   listEvents,
   resetAgendaData,
   setTimeZonePreference,
+  simulateCompetingBooking,
   simulateRemoteMove,
   subscribeToAgenda,
   updateEvent,
@@ -179,6 +180,18 @@ export function AgendaApp() {
           {
             title: "Other devices",
             actions: [{ label: "Another device moves “Weekly planning” +1h", run: () => simulateRemoteMove("evt-1") }],
+          },
+          {
+            title: "Booking",
+            actions: [
+              {
+                label: "Another visitor books a slot…",
+                run: async () => {
+                  const value = window.prompt("Slot start as ISO (UTC), e.g. 2026-10-14T14:00:00Z", "2026-10-14T14:00:00Z");
+                  if (value) await simulateCompetingBooking(value, 30);
+                },
+              },
+            ],
           },
           { title: "Failures", actions: [{ label: "Fail next event update", run: failNextEventUpdate }] },
         ]}

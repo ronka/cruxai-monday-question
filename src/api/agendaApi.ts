@@ -159,6 +159,52 @@ export async function simulateRemoteMove(id: string): Promise<CalendarEvent> {
   });
 }
 
+/** Busy intervals (non-declined events) overlapping [from, to), merged and sorted. */
+export async function getBusyIntervals(from: string, to: string): Promise<{ start: string; end: string }[]> {
+  const events = await listEvents(from, to);
+  const intervals = events
+    .filter((event) => !event.attendees.some((a) => a.email === OWNER.email && a.response === "declined"))
+    .map((event) => [Date.parse(event.startsAt), Date.parse(event.endsAt)] as [number, number])
+    .sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const [start, end] of intervals) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  return merged.map(([start, end]) => ({ start: new Date(start).toISOString(), end: new Date(end).toISOString() }));
+}
+
+/**
+ * Mock control: another visitor books a slot at `startsAt` (ISO) for
+ * `minutes`, without checking availability — as if their request reached the
+ * server first. Returns the created busy event.
+ */
+export async function simulateCompetingBooking(startsAt: string, minutes = 30): Promise<CalendarEvent> {
+  const db = await agendaDb();
+  const id = newId("evt-");
+  const start = Date.parse(startsAt);
+  if (Number.isNaN(start)) throw new Error("Invalid start time");
+  const data = {
+    title: "Booked: Intro call (other visitor)",
+    allDay: false,
+    timeZone: "UTC",
+    color: COLORS[3],
+    location: "Video call",
+    organizer: OWNER.email,
+    attendees: [{ email: "visitor@elsewhere.com", name: "Other visitor", response: "accepted" }],
+  };
+  db.run("INSERT INTO events VALUES (?, ?, ?, ?, 1, ?)", [
+    id,
+    new Date(start).toISOString(),
+    new Date(start + minutes * 60000).toISOString(),
+    JSON.stringify(data),
+    clock.date().toISOString(),
+  ]);
+  emitter.emit({ type: "event", eventId: id });
+  return readEvent(db, id);
+}
+
 export function failNextEventUpdate(): void {
   network.failNext("updateEvent");
 }

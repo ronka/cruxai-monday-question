@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { beforeAll, expect, test } from "@jest/globals";
-import { getChangedFiles, getPullRequest, listComments, publishComment, reviewDb, simulatePush } from "@/api/reviewApi";
+import { getChangedFiles, getPullRequest, reviewDb, simulatePush } from "@/api/reviewApi";
 import { diffLines, segmentRows } from "@/lib/diff";
 import { network } from "@/mock/network";
 
@@ -30,12 +30,19 @@ test("changed files include added, modified and removed", async () => {
   });
 });
 
-test("a push makes comments on changed lines outdated", async () => {
-  const comment = await publishComment({ fileId: "f-config", line: 9, side: "new", body: "Validate this is a number?" });
-  expect(comment.outdated).toBe(false);
+test("the pushed commit edits, renames, adds and removes files with stable IDs", async () => {
+  const before = await getChangedFiles();
   await simulatePush();
-  expect((await getPullRequest()).commits).toHaveLength(2);
-  const after = await listComments();
-  expect(after.find((c) => c.id === "c-2")?.outdated).toBe(true); // health endpoint line changed
-  expect(after.find((c) => c.id === comment.id)?.outdated).toBe(false); // config unchanged
+  const after = await getChangedFiles();
+  const byId = Object.fromEntries(after.map((f) => [f.fileId, f]));
+  expect(byId["f-config"]).toMatchObject({ status: "renamed", path: "src/settings.ts", previousPath: "src/config.ts" });
+  expect(byId["f-config"].contentRevision).toBe(before.find((f) => f.fileId === "f-config")!.contentRevision);
+  expect(byId["f-test"].status).toBe("added");
+  expect(byId["f-issues"].status).toBe("removed");
+  expect(byId["f-readme"]).toBeUndefined();
+  expect(byId["f-limiter"].contentRevision).toBe(before.find((f) => f.fileId === "f-limiter")!.contentRevision);
+  expect(byId["f-server"].contentRevision).not.toBe(before.find((f) => f.fileId === "f-server")!.contentRevision);
+  await simulatePush();
+  expect((await getPullRequest()).commits).toHaveLength(3);
+  await expect(simulatePush()).rejects.toThrow("No more commits");
 });

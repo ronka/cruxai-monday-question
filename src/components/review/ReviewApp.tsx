@@ -52,6 +52,8 @@ export function ReviewApp() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  /** The signed-in reviewer. Switch in the header to simulate another reviewer on this browser. */
+  const [reviewer, setReviewer] = useState(CURRENT_USER);
 
   useEffect(
     () =>
@@ -104,7 +106,13 @@ export function ReviewApp() {
       <header className="flex items-center gap-3 bg-[#f6f8fa] px-6 py-3 text-[14px] shadow-[inset_0_-1px_0_#d1d9e0]">
         <GitPullRequest className="h-6 w-6" />
         <span className="text-neutral-600">northwind / <strong className="text-[#1f2328]">public-api</strong></span>
-        <span className="ml-auto flex items-center gap-2"><Avatar login={CURRENT_USER} size={24} /></span>
+        <label className="ml-auto flex items-center gap-2 text-[13px] text-neutral-600">
+          Reviewing as
+          <select aria-label="Reviewer" className="rounded-md border border-neutral-300 bg-white px-2 py-1" value={reviewer} onChange={(e) => setReviewer(e.target.value)}>
+            {users.filter((u) => u.login !== "deshawn").map((u) => <option key={u.login} value={u.login}>{u.name}</option>)}
+          </select>
+          <Avatar login={reviewer} size={24} />
+        </label>
       </header>
       {pr.data && (
         <div className="mx-auto max-w-[1280px] px-6">

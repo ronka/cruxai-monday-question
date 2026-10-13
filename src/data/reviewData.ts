@@ -248,17 +248,52 @@ export const commit1: CommitFixture = {
   },
 };
 
-/** Pushed by the "Author pushes a new commit" mock control. */
+const limiterTest = `import { createRateLimiter } from "../src/rateLimiter";
+
+function fakeReq(ip: string) {
+  return { ip, header: () => undefined } as never;
+}
+
+test("allows requests up to the limit", () => {
+  const limiter = createRateLimiter({ windowMs: 1000, limit: 2 });
+  const res = { setHeader: jest.fn(), status: jest.fn(() => res), json: jest.fn() } as never;
+  const next = jest.fn();
+  limiter.middleware(fakeReq("1.1.1.1"), res, next);
+  limiter.middleware(fakeReq("1.1.1.1"), res, next);
+  expect(next).toHaveBeenCalledTimes(2);
+});
+`;
+
+/**
+ * Pushed by the "Author pushes a new commit" mock control. Relative to commit 1:
+ * - src/server.ts is edited
+ * - src/config.ts is renamed to src/settings.ts (same file ID, same content)
+ * - test/rateLimiter.test.ts is added
+ * - src/routes/issues.ts is deleted
+ * - README.md is reverted to the base version, so it leaves the diff
+ * - src/rateLimiter.ts and src/legacy/throttle.ts are unchanged
+ */
 export const commit2: CommitFixture = {
   sha: "e77d0b5",
-  message: "Key limiter by API key and add Retry-After",
+  message: "Key limiter by API key, rename config, add tests",
   author: "deshawn",
   ageHours: 0,
   tree: {
-    ...commit1.tree,
-    "f-server": { path: "src/server.ts", content: serverHead2 },
-    "f-limiter": { path: "src/rateLimiter.ts", content: rateLimiter2 },
+    "f-server": { path: "src/server.ts", content: serverHead2.replace('"./config"', '"./settings"') },
+    "f-config": { path: "src/settings.ts", content: configHead },
+    "f-limiter": commit1.tree["f-limiter"],
+    "f-readme": { path: "README.md", content: readmeBase },
+    "f-test": { path: "test/rateLimiter.test.ts", content: limiterTest },
   },
+};
+
+/** A later push that edits the limiter (for testing invalidation twice). */
+export const commit3: CommitFixture = {
+  sha: "9b3f1c8",
+  message: "Add Retry-After header",
+  author: "deshawn",
+  ageHours: 0,
+  tree: { ...commit2.tree, "f-limiter": { path: "src/rateLimiter.ts", content: rateLimiter2 } },
 };
 
 export const PULL = {

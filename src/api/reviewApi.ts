@@ -1,4 +1,4 @@
-import { baseTree, commit1, commit2, CURRENT_USER, PULL, seedComments, type CommitFixture, type Tree } from "@/data/reviewData";
+import { baseTree, commit1, commit2, commit3, CURRENT_USER, PULL, seedComments, type CommitFixture, type Tree } from "@/data/reviewData";
 import { clock, HOUR } from "@/mock/clock";
 import { createEmitter, newId } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
@@ -31,7 +31,7 @@ CREATE TABLE comments (
 `;
 
 /** Commit fixtures that "Author pushes a new commit" appends, in order. */
-export const PUSH_QUEUE: CommitFixture[] = [commit2];
+export const PUSH_QUEUE: CommitFixture[] = [commit2, commit3];
 
 export function reviewDb(): Promise<LocalDatabase> {
   return openDatabase({

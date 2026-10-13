@@ -3,6 +3,7 @@
 // IndexedDB is unavailable (tests, private windows) it stays in memory.
 //
 // This is local storage for one browser, not a shared server.
+import { STORAGE_NAMESPACE } from "./namespace";
 import initSqlJs, { type Database, type SqlJsStatic, type SqlValue } from "sql.js";
 
 export type Row = Record<string, SqlValue>;
@@ -86,7 +87,7 @@ const opened = new Map<string, Promise<LocalDatabase>>();
 
 /** Opens (once per page) the named database, seeding it when empty. */
 export function openDatabase(options: DatabaseOptions): Promise<LocalDatabase> {
-  const key = `${options.name}@${options.version}`;
+  const key = `${STORAGE_NAMESPACE}/${options.name}@${options.version}`;
   let promise = opened.get(key);
   if (!promise) {
     promise = create(options, key);

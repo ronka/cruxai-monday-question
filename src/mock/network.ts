@@ -57,14 +57,14 @@ export async function simulate<T>(
   pending.delete(operation);
   if (fault === "fail")
     throw new MockNetworkError(
-      `${operation} failed. Please try again.`,
+      "The request failed. Please try again.",
       operation,
       false,
     );
   const result = await run();
   if (fault === "lose-response")
     throw new MockNetworkError(
-      `${operation} timed out. The server may have applied it.`,
+      "The request timed out. The server may have applied it.",
       operation,
       true,
     );

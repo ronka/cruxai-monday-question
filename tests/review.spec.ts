@@ -39,3 +39,20 @@ test("a push makes comments on changed lines outdated", async () => {
   expect(after.find((c) => c.id === "c-2")?.outdated).toBe(true); // health endpoint line changed
   expect(after.find((c) => c.id === comment.id)?.outdated).toBe(false); // config unchanged
 });
+
+test("suggestions, file store and idempotent commit adapter", async () => {
+  const { createCommit, getFileContent, loseNextCommitResponse } = await import("@/api/reviewApi");
+  const suggestions = (await listComments()).filter((c) => c.suggestion);
+  expect(suggestions).toHaveLength(7);
+  const pr = await getPullRequest();
+  const content = await getFileContent("f-readme");
+  const change = { fileId: "f-readme", content: content.replace("may make", "may make up to") };
+  loseNextCommitResponse();
+  await expect(createCommit({ parentSha: pr.headSha, message: "Apply", changes: [change], idempotencyKey: "k1" })).rejects.toThrow("timed out");
+  const retry = await createCommit({ parentSha: pr.headSha, message: "Apply", changes: [change], idempotencyKey: "k1" });
+  const after = await getPullRequest();
+  expect(after.headSha).toBe(retry.sha);
+  expect(after.commits).toHaveLength(pr.commits.length + 1);
+  await expect(createCommit({ parentSha: pr.headSha, message: "Again", changes: [change], idempotencyKey: "k2" })).rejects.toThrow("branch moved");
+  expect(await getFileContent("f-readme")).toContain("may make up to");
+});

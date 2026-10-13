@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileCode2, FileDiff as FileDiffIcon, GitCommit, GitPullRequest, MessageSquare } from "lucide-react";
 import {
+  failNextCommit,
   failNextPublish,
+  loseNextCommitResponse,
   getChangedFiles,
   getPullRequest,
   listComments,
@@ -38,6 +40,21 @@ export function CommentCard({ comment }: { comment: ReviewComment }) {
         {comment.outdated && <span className="rounded-full border border-neutral-300 px-1.5 text-[11px] text-neutral-600">Outdated</span>}
       </div>
       <p className="whitespace-pre-wrap px-3 py-2">{comment.body}</p>
+      {comment.suggestion && (
+        <div className="mx-3 mb-3 overflow-hidden rounded-md border border-neutral-300">
+          <p className="border-b border-neutral-300 bg-[#f6f8fa] px-3 py-1 text-[12px] text-neutral-600">
+            Suggested change · lines {comment.suggestion.startLine}–{comment.suggestion.endLine}
+          </p>
+          <pre className="overflow-x-auto font-mono text-[12px] leading-5">
+            {comment.suggestion.originalLines.map((line, i) => (
+              <div key={`o${i}`} className="bg-[#ffebe9] px-3">- {line}</div>
+            ))}
+            {comment.suggestion.replacement.map((line, i) => (
+              <div key={`r${i}`} className="bg-[#e6ffec] px-3">+ {line}</div>
+            ))}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
@@ -173,7 +190,14 @@ export function ReviewApp() {
               { label: "Teammate publishes a comment", run: simulateTeammateComment },
             ],
           },
-          { title: "Failures", actions: [{ label: "Fail next comment publish", run: failNextPublish }] },
+          {
+            title: "Failures",
+            actions: [
+              { label: "Fail next comment publish", run: failNextPublish },
+              { label: "Fail next commit", run: failNextCommit },
+              { label: "Lose next commit response (commit still applies)", run: loseNextCommitResponse },
+            ],
+          },
         ]}
         onReset={resetReviewData}
       />

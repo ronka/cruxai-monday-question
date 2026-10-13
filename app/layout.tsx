@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Add per-client rate limiting · Pull Request #482",
-  description: "A GitHub-style pull request review page. Interview starter.",
+  description: "A GitHub-style pull request review page. Suggested changes interview starter.",
 };
 
 export default function RootLayout({

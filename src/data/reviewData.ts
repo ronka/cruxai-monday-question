@@ -272,7 +272,23 @@ export const PULL = {
 
 /** Comments already published on commit 1: [fileId, line, side, author, body]. */
 export const seedComments: [string, number, "new" | "old", string, string][] = [
-  ["f-limiter", 13, "new", "yuki", "`req.ip` can be undefined behind some proxies — should we fall back to something?"],
+  ["f-limiter", 12, "new", "yuki", "`req.ip` can be undefined behind some proxies — should we fall back to something?"],
   ["f-server", 18, "new", "yuki", "Do we want limiter stats exposed on an unauthenticated health endpoint?"],
   ["f-readme", 7, "new", "mara", "Nice, thanks for documenting the headers."],
+];
+
+/** Suggestions published on commit 1: [fileId, startLine, endLine, author, body, replacement]. */
+export const seedSuggestions: [string, number, number, string, string, string[]][] = [
+  ["f-limiter", 12, 12, "yuki", "Guard against a missing IP.", ['    const key = req.ip ?? "unknown";']],
+  ["f-limiter", 18, 18, "yuki", "Never send a negative remaining count.", ['    res.setHeader("X-RateLimit-Remaining", Math.max(0, options.limit - recent.length));']],
+  ["f-limiter", 17, 19, "mara", "Clamp remaining and add Retry-After on 429 (overlaps Yuki's suggestion).", [
+    '    res.setHeader("X-RateLimit-Limit", options.limit);',
+    '    res.setHeader("X-RateLimit-Remaining", Math.max(0, options.limit - recent.length));',
+    "    if (recent.length > options.limit) {",
+    '      res.setHeader("Retry-After", Math.ceil(options.windowMs / 1000));',
+  ]],
+  ["f-limiter", 26, 28, "yuki", "Expose the configured limit too.", ["  function stats() {", "    return { keys: hits.size, limit: options.limit };", "  }"]],
+  ["f-server", 17, 19, "yuki", "Don't leak limiter stats on the public health check.", ['app.get("/health", (_req, res) => {', "  res.json({ ok: true });", "});"]],
+  ["f-readme", 7, 7, "mara", "Tiny wording fix.", ["Each client may make up to `RATE_LIMIT` requests per minute (default 120)."]],
+  ["f-config", 9, 9, "yuki", "This suggestion was written against an older version of the line.", ["    requestsPerMinute: parseInt(process.env.RATE_LIMIT ?? \"120\", 10),"]],
 ];

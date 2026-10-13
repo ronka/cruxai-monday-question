@@ -52,6 +52,23 @@ export interface ReviewComment {
   createdAt: string;
   /** Present when the line no longer exists in the latest commit. */
   outdated: boolean;
+  /** A proposed replacement for head lines [startLine, endLine] (inclusive, 1-based). */
+  suggestion: Suggestion | null;
+}
+
+export interface Suggestion {
+  startLine: number;
+  endLine: number;
+  /** Lines that should replace the range (may be empty to delete). */
+  replacement: string[];
+  /** The range's text when the suggestion was written; used to detect staleness. */
+  originalLines: string[];
+}
+
+export interface FileChange {
+  fileId: string;
+  /** Full new content of the file. */
+  content: string;
 }
 
 export type ReviewEvent = { type: "push"; headSha: string } | { type: "comment"; commentId: string };

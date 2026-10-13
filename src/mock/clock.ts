@@ -1,9 +1,11 @@
 // A controllable mock clock. Time only moves when the mock controls advance it,
 // so time-based behavior is deterministic. The current mock time is saved in
 // localStorage, so reopening the app continues from the last mock time.
+import { STORAGE_NAMESPACE } from "./namespace";
+
 type Listener = (now: number) => void;
 
-const STORAGE_KEY = "mock-clock";
+const STORAGE_KEY = `mock-clock:${STORAGE_NAMESPACE}`;
 export const DEFAULT_START = Date.parse("2026-10-13T09:00:00Z");
 const listeners = new Set<Listener>();
 let current: number | null = null;

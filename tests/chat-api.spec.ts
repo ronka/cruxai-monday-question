@@ -87,3 +87,13 @@ test("rejects cross-channel parents and blank messages", async () => {
   await jest.runAllTimersAsync();
   await blank;
 });
+
+test("messages are stamped with the mock clock", async () => {
+  const { clock, DAY } = await import("@/mock/clock");
+  clock.reset(Date.parse("2026-10-20T08:00:00Z"));
+  clock.advance(DAY);
+  const sent = await finish(
+    sendMessage({ channelId: "random", body: "Later", clientId: "clocked" }),
+  );
+  expect(sent.createdAt).toBe("2026-10-21T08:00:00.000Z");
+});

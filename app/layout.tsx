@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Relay — Studio North",
   description:
-    "A Slack-style workspace. Threaded conversations interview starter.",
+    "A Slack-style workspace. Scheduled messages interview starter.",
 };
 
 export default function RootLayout({

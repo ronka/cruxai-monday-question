@@ -13,7 +13,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { channels, members } from "@/data/chatData";
+import { channels, currentUserTimeZone, members } from "@/data/chatData";
 import {
   failNextMessageSend,
   getMessages,
@@ -314,6 +314,7 @@ export function ChatWorkspace() {
       </div>
       <MockControls
         showClock
+        timeZone={currentUserTimeZone}
         sections={[
           {
             title: "Workspace",

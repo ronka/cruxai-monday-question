@@ -1,6 +1,8 @@
-# Relay — threaded conversations interview
+# Relay — scheduled messages interview
 
-A Slack-inspired frontend starter for a feature implementation interview. The app already has channels, searchable message history, message sending, per-channel drafts, channel URLs, and simulated live messages. **Threaded conversations are the candidate's task and are not implemented.**
+A Slack-inspired frontend starter for a feature implementation interview. The app already has channels, searchable message history, message sending, per-channel drafts, channel URLs, and simulated live messages. Messages persist in browser SQLite and are timestamped by a controllable mock clock. **Scheduling messages is the candidate's task and is not implemented.**
+
+Template: **Relay** (shared with the threaded-conversations and saved-messages questions).
 
 ## Run
 
@@ -9,45 +11,44 @@ npm ci
 npm run dev -- -p 3002
 ```
 
-Open http://localhost:3002. No environment variables, database, account, or backend required. Uses the existing Next.js 15, React 18, TypeScript, and TanStack Query dependencies.
+Open http://localhost:3002. No environment variables, server, account, or backend required.
 
 ## Task
 
-Add threaded conversations to the workspace:
+Add **Send later** and a scheduled-message list:
 
-1. Open any channel message in a side panel showing the original message and its replies. Close the panel without losing the channel position.
-2. Send replies optimistically. Show pending and failed states; retry a failed reply without losing text or creating duplicates.
-3. Display a reply count and unique participant avatars on the parent message in the channel timeline. Replies must not become top-level channel messages.
-4. Receive new replies live and keep the thread and parent summary consistent. Clean up subscriptions and avoid stale results when switching threads quickly.
-5. Preserve unfinished drafts independently for each thread when switching, closing, and reopening threads. Persistence across a full page refresh is optional.
-6. Support a shareable URL that loads the correct channel and parent message after a fresh page load. Handle missing messages and back/forward navigation.
-7. Include loading, empty, failure, and keyboard-accessible states. Keep the existing channel search and message sending working.
+1. From the composer, schedule the current draft for a chosen future time. Validate that the time is in the future and show the user's time zone (`currentUserTimeZone`) next to the picker.
+2. Add a list of scheduled messages. Users can edit the text, reschedule, cancel, or send immediately.
+3. When the mock clock reaches the due time while the app is open, deliver the message **exactly once**.
+4. After a reload, deliver overdue messages exactly once. Do not rely on timers running while the browser is closed.
+5. A failed delivery (use **Fail next send**) stays recoverable: the user can see it failed and retry or edit it.
+6. Define and implement what happens when the user edits or cancels a message while its delivery is already in flight.
 
-Choose and document the URL format and state design. Add meaningful tests for the interactions and races your implementation handles. No backend implementation is required.
+Choose and document the data model and state transitions. Add meaningful tests for the scheduling rules and races you handle.
+
+## What the starter provides
+
+- **Mock clock** — `src/mock/clock.ts`. Time moves only when you use the clock buttons in **Mock controls**. Use `clock.now()` and `clock.subscribe()` rather than `Date.now()`. The mock time is saved, so a reload continues from the same time.
+- **Browser SQLite** — `src/mock/sqlite.ts`. `chatDb()` in `src/api/chatApi.ts` opens the `relay` database. Add your own tables to `SCHEMA` and bump `version` (this discards saved data). Use `db.transaction()` for multi-statement changes.
+- **Send failures** — **Fail next send** makes the next `sendMessage` call reject without storing anything.
+- **Time zones** — every member has a `timeZone`; the signed-in user's preference is `currentUserTimeZone`.
+- **Reset local data** restores fixtures and the clock.
 
 ## Code map
 
-- [Workspace UI](src/components/chat/ChatWorkspace.tsx): channel routing, query subscriptions, composer, mock controls.
+- [Workspace UI](src/components/chat/ChatWorkspace.tsx): channel routing, composer, mock controls.
 - [Message list](src/components/chat/MessageList.tsx): flat channel messages.
-- [Mock API](src/api/chatApi.ts): async in-memory reads/writes with 350 ms latency.
-- [Fixtures](src/data/chatData.ts): channels, members, starting messages.
-- [Types](src/types/chat.ts): message and send contracts.
-
-`app/` is the Next.js route directory. This branch replaces the Monday exercise; the original is preserved on `main`.
+- [Mock API](src/api/chatApi.ts): SQLite-backed reads and writes with 350 ms latency.
+- [Fixtures](src/data/chatData.ts): channels, members, time zones, starting messages.
+- [Mock infrastructure](src/mock): clock, SQLite adapter, network faults, controls panel.
 
 ## Mock API contract
 
-- `getMessages(channelId)` returns top-level messages only.
-- `getMessage(id)` returns one message or rejects if missing.
-- `getReplies(parentId)` returns replies to a message.
-- `sendMessage({ channelId, body, clientId, parentId? })` sends either a channel message or a reply. Use a stable client ID to make successful retries idempotent. The server trims whitespace and rejects empty or oversized messages.
-- `subscribeToMessages(listener)` delivers new messages and replies, and returns an unsubscribe function. A successful send also emits an event before its promise resolves.
-- `simulateIncomingMessage(channelId, parentId?)` creates a message from another member. Pass a parent ID to exercise incoming thread replies as you build the feature.
+- `getMessages(channelId)` returns top-level messages in timestamp order.
+- `sendMessage({ channelId, body, clientId })` stores and publishes a message stamped with the mock time. Reusing a `clientId` returns the stored message instead of creating a duplicate.
+- `subscribeToMessages(listener)` delivers new messages; returns an unsubscribe function.
 - `failNextMessageSend()` makes the next new send reject once.
-
-The collapsible controls beneath the composer can inject messages, enable a 15-second incoming-message interval, or fail the next send. Automatic simulation is off by default. Thread API functions are supplied as infrastructure, but no thread UI, summaries, optimistic reply state, thread drafts, or thread routing is supplied.
-
-Data is local to this browser tab and resets on reload. Cross-tab synchronization and production persistence are out of scope.
+- `resetChatData()` restores fixtures.
 
 ## Verify
 

@@ -1,6 +1,8 @@
 import type { Channel, Member, Message } from "@/types/chat";
 
 export const currentUserId = "alex";
+/** The signed-in user's time-zone preference (Profile → Time zone). */
+export const currentUserTimeZone = "Europe/London";
 export const members: Member[] = [
   {
     id: "alex",
@@ -8,6 +10,7 @@ export const members: Member[] = [
     initials: "AM",
     color: "#635baf",
     role: "Product engineer",
+    timeZone: "Europe/London",
   },
   {
     id: "maya",
@@ -15,6 +18,7 @@ export const members: Member[] = [
     initials: "MC",
     color: "#bc7854",
     role: "Product designer",
+    timeZone: "America/Los_Angeles",
   },
   {
     id: "jordan",
@@ -22,6 +26,7 @@ export const members: Member[] = [
     initials: "JL",
     color: "#467e84",
     role: "Frontend engineer",
+    timeZone: "Asia/Jerusalem",
   },
   {
     id: "sam",
@@ -29,6 +34,7 @@ export const members: Member[] = [
     initials: "SR",
     color: "#a35e86",
     role: "Engineering lead",
+    timeZone: "America/New_York",
   },
 ];
 export const channels: Channel[] = [

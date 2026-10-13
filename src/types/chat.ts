@@ -4,6 +4,8 @@ export interface Member {
   initials: string;
   color: string;
   role: string;
+  /** IANA time zone, e.g. "America/New_York". */
+  timeZone: string;
 }
 export interface Channel {
   id: string;

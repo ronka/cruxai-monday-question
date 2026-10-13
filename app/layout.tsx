@@ -3,8 +3,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Interview starter",
-  description: "Feature implementation interview starter.",
+  title: "Tracker — Northwind",
+  description: "A Linear-style issue tracker. Interview starter.",
 };
 
 export default function RootLayout({

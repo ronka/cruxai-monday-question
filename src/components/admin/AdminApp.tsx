@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BarChart3, Home, Inbox, Megaphone, Percent, Search, Settings, Store, Tag, Users } from "lucide-react";
-import { failNextProductUpdate, resetAdminData, simulateOtherAdminEdit, subscribeToAdmin } from "@/api/adminApi";
+import { failNextProductUpdate, network, resetAdminData, simulateOtherAdminEdit, simulateShopSale, subscribeToAdmin } from "@/api/adminApi";
 import { MockControls } from "@/mock/MockControls";
 import { ProductEditor } from "./ProductEditor";
 import { ProductList, type CatalogFilters } from "./ProductList";
@@ -46,6 +46,7 @@ export function AdminApp() {
       subscribeToAdmin((event) => {
         void queryClient.invalidateQueries({ queryKey: ["products"] });
         void queryClient.invalidateQueries({ queryKey: ["product", event.productId] });
+        void queryClient.invalidateQueries({ queryKey: ["ledger", event.productId] });
       }),
     [queryClient],
   );
@@ -111,10 +112,21 @@ export function AdminApp() {
             title: "Other admins",
             actions: [
               { label: "Another admin edits a random product", run: () => simulateOtherAdminEdit() },
-              ...(productId ? [{ label: "Another admin edits this product", run: () => simulateOtherAdminEdit(productId) }] : []),
+              ...(productId
+                ? [
+                    { label: "Another admin edits this product", run: () => simulateOtherAdminEdit(productId) },
+                    { label: "Shop sells one unit (first variant)", run: () => simulateShopSale(`var-${productId.slice(5)}-1`) },
+                  ]
+                : []),
             ],
           },
-          { title: "Failures", actions: [{ label: "Fail next product save", run: failNextProductUpdate }] },
+          {
+            title: "Failures",
+            actions: [
+              { label: "Fail next product save", run: failNextProductUpdate },
+              { label: "Lose the response of the next stock change", run: () => network.loseNextResponse("adjustInventory") },
+            ],
+          },
         ]}
         onReset={resetAdminData}
       />

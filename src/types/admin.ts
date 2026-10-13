@@ -8,8 +8,28 @@ export interface Variant {
   sku: string;
   /** Integer cents. */
   priceCents: number;
-  /** Units on hand. */
+  /** Total units on hand across all locations (derived). */
   inventory: number;
+  /** Units on hand per location ID. */
+  levels: Record<string, number>;
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  kind: "warehouse" | "shop";
+}
+
+export interface LedgerEntry {
+  id: string;
+  variantId: string;
+  locationId: string;
+  /** Positive adds stock, negative removes it. */
+  delta: number;
+  reason: string;
+  /** Optional external reference, e.g. a transfer ID. */
+  reference: string | null;
+  at: string;
 }
 
 export interface Product {
@@ -47,7 +67,7 @@ export interface ProductPatch {
   category?: string;
   status?: ProductStatus;
   /** Per-variant changes keyed by variant ID. */
-  variants?: Record<string, { priceCents?: number; inventory?: number }>;
+  variants?: Record<string, { priceCents?: number }>;
 }
 
 export type AdminEvent = { type: "product"; productId: string };

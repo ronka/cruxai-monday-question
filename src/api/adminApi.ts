@@ -1,9 +1,9 @@
-import { CATEGORIES, seedProducts } from "@/data/adminData";
+import { CATEGORIES, LOCATIONS, seedProducts } from "@/data/adminData";
 import { clock } from "@/mock/clock";
-import { createEmitter } from "@/mock/events";
+import { createEmitter, newId } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
 import { openDatabase, type LocalDatabase } from "@/mock/sqlite";
-import type { AdminEvent, Product, ProductPage, ProductPatch, ProductQuery, ProductStatus, Variant } from "@/types/admin";
+import type { AdminEvent, LedgerEntry, Location, Product, ProductPage, ProductPatch, ProductQuery, ProductStatus, Variant } from "@/types/admin";
 
 // Browser-local mock server backed by SQLite. Data persists across refreshes;
 // "Reset local data" in the mock controls restores the fixtures.
@@ -24,8 +24,22 @@ CREATE TABLE variants (
   position INTEGER NOT NULL,
   title TEXT NOT NULL,
   sku TEXT NOT NULL UNIQUE,
-  price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
-  inventory INTEGER NOT NULL CHECK (inventory >= 0)
+  price_cents INTEGER NOT NULL CHECK (price_cents >= 0)
+);
+CREATE TABLE inventory_levels (
+  variant_id TEXT NOT NULL REFERENCES variants(id),
+  location_id TEXT NOT NULL,
+  on_hand INTEGER NOT NULL CHECK (on_hand >= 0),
+  PRIMARY KEY (variant_id, location_id)
+);
+CREATE TABLE inventory_ledger (
+  id TEXT PRIMARY KEY,
+  variant_id TEXT NOT NULL,
+  location_id TEXT NOT NULL,
+  delta INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  reference TEXT,
+  at TEXT NOT NULL
 );
 `;
 
@@ -46,17 +60,28 @@ export function adminDb(): Promise<LocalDatabase> {
           product.color,
           now,
         ]);
-        product.variants.forEach((variant, position) =>
-          db.run("INSERT INTO variants VALUES (?, ?, ?, ?, ?, ?, ?)", [
+        product.variants.forEach((variant, position) => {
+          db.run("INSERT INTO variants VALUES (?, ?, ?, ?, ?, ?)", [
             variant.id,
             product.id,
             position,
             variant.title,
             variant.sku,
             variant.priceCents,
-            variant.inventory,
-          ]),
-        );
+          ]);
+          const shop = Math.floor(variant.inventory / 4);
+          const split = { "loc-central": variant.inventory - shop + 10, "loc-shop": shop };
+          for (const [locationId, onHand] of Object.entries(split)) {
+            db.run("INSERT INTO inventory_levels VALUES (?, ?, ?)", [variant.id, locationId, onHand]);
+            db.run("INSERT INTO inventory_ledger VALUES (?, ?, ?, ?, 'initial count', NULL, ?)", [
+              `led-${variant.id}-${locationId}`,
+              variant.id,
+              locationId,
+              onHand,
+              now,
+            ]);
+          }
+        });
       }
     },
   });
@@ -75,13 +100,17 @@ export class VersionConflictError extends Error {
 }
 
 type ProductRow = { id: string; title: string; vendor: string; category: string; status: ProductStatus; color: string; version: number; updated_at: string };
-type VariantRow = { id: string; product_id: string; title: string; sku: string; price_cents: number; inventory: number };
+type VariantRow = { id: string; product_id: string; title: string; sku: string; price_cents: number };
 
 function hydrate(db: LocalDatabase, rows: ProductRow[]): Product[] {
   if (rows.length === 0) return [];
   const variants = db.all<VariantRow>(
     `SELECT * FROM variants WHERE product_id IN (${rows.map(() => "?").join(",")}) ORDER BY position`,
     rows.map((row) => row.id),
+  );
+  const levels = db.all<{ variant_id: string; location_id: string; on_hand: number }>(
+    `SELECT * FROM inventory_levels WHERE variant_id IN (${variants.map(() => "?").join(",")})`,
+    variants.map((variant) => variant.id),
   );
   return rows.map((row) => ({
     id: row.id,
@@ -95,14 +124,19 @@ function hydrate(db: LocalDatabase, rows: ProductRow[]): Product[] {
     variants: variants
       .filter((variant) => variant.product_id === row.id)
       .map(
-        (variant): Variant => ({
-          id: variant.id,
-          productId: variant.product_id,
-          title: variant.title,
-          sku: variant.sku,
-          priceCents: variant.price_cents,
-          inventory: variant.inventory,
-        }),
+        (variant): Variant => {
+          const byLocation = Object.fromEntries(LOCATIONS.map((location) => [location.id, 0]));
+          for (const level of levels) if (level.variant_id === variant.id) byLocation[level.location_id] = level.on_hand;
+          return {
+            id: variant.id,
+            productId: variant.product_id,
+            title: variant.title,
+            sku: variant.sku,
+            priceCents: variant.price_cents,
+            inventory: Object.values(byLocation).reduce((sum, value) => sum + value, 0),
+            levels: byLocation,
+          };
+        },
       ),
   }));
 }
@@ -180,10 +214,8 @@ function applyPatch(db: LocalDatabase, id: string, patch: ProductPatch, expected
       const variant = current.variants.find((item) => item.id === variantId);
       if (!variant) throw new Error(`Variant ${variantId} does not belong to ${current.title}`);
       const price = change.priceCents ?? variant.priceCents;
-      const inventory = change.inventory ?? variant.inventory;
       if (!Number.isInteger(price) || price < 0) throw new Error("Prices must be whole, non-negative cents");
-      if (!Number.isInteger(inventory) || inventory < 0) throw new Error("Inventory must be a whole, non-negative number");
-      db.run("UPDATE variants SET price_cents = ?, inventory = ? WHERE id = ?", [price, inventory, variantId]);
+      db.run("UPDATE variants SET price_cents = ? WHERE id = ?", [price, variantId]);
     }
   });
   events.emit({ type: "product", productId: id });
@@ -199,6 +231,64 @@ export async function updateProduct(id: string, patch: ProductPatch, expectedVer
   return simulate("updateProduct", () => applyPatch(db, id, patch, expectedVersion));
 }
 
+export async function listLocations(): Promise<Location[]> {
+  return simulate("listLocations", () => LOCATIONS);
+}
+
+/**
+ * Applies stock changes atomically and appends one ledger entry per change.
+ * Rejects (changing nothing) if any level would go below zero.
+ */
+export function applyInventoryChanges(
+  db: LocalDatabase,
+  changes: { variantId: string; locationId: string; delta: number }[],
+  reason: string,
+  reference: string | null = null,
+): void {
+  const touched = new Set<string>();
+  db.transaction(() => {
+    const at = clock.date().toISOString();
+    for (const change of changes) {
+      if (!Number.isInteger(change.delta)) throw new Error("Quantities must be whole numbers");
+      if (!LOCATIONS.some((location) => location.id === change.locationId)) throw new Error("Unknown location");
+      const variant = db.get<{ product_id: string }>("SELECT product_id FROM variants WHERE id = ?", [change.variantId]);
+      if (!variant) throw new Error(`Variant ${change.variantId} not found`);
+      db.run("INSERT OR IGNORE INTO inventory_levels VALUES (?, ?, 0)", [change.variantId, change.locationId]);
+      const { on_hand } = db.get<{ on_hand: number }>("SELECT on_hand FROM inventory_levels WHERE variant_id = ? AND location_id = ?", [change.variantId, change.locationId])!;
+      if (on_hand + change.delta < 0) throw new Error(`Not enough stock: ${on_hand} on hand, ${-change.delta} requested`);
+      db.run("UPDATE inventory_levels SET on_hand = on_hand + ? WHERE variant_id = ? AND location_id = ?", [change.delta, change.variantId, change.locationId]);
+      db.run("INSERT INTO inventory_ledger VALUES (?, ?, ?, ?, ?, ?, ?)", [newId("led-"), change.variantId, change.locationId, change.delta, reason, reference, at]);
+      touched.add(variant.product_id);
+    }
+  });
+  touched.forEach((productId) => events.emit({ type: "product", productId }));
+}
+
+/** Manual stock correction at one location (e.g. after a count). */
+export async function adjustInventory(variantId: string, locationId: string, delta: number, reason = "correction"): Promise<void> {
+  const db = await adminDb();
+  return simulate("adjustInventory", () => applyInventoryChanges(db, [{ variantId, locationId, delta }], reason));
+}
+
+/** Ledger entries for a product's variants, newest first. */
+export async function getInventoryLedger(productId: string): Promise<LedgerEntry[]> {
+  const db = await adminDb();
+  return simulate("getInventoryLedger", () =>
+    db
+      .all<{ id: string; variant_id: string; location_id: string; delta: number; reason: string; reference: string | null; at: string }>(
+        "SELECT l.* FROM inventory_ledger l JOIN variants v ON v.id = l.variant_id WHERE v.product_id = ? ORDER BY l.at DESC, l.rowid DESC",
+        [productId],
+      )
+      .map((row) => ({ id: row.id, variantId: row.variant_id, locationId: row.location_id, delta: row.delta, reason: row.reason, reference: row.reference, at: row.at })),
+  );
+}
+
+/** Mock control: a shop sale removes one unit of a variant at the shop. */
+export async function simulateShopSale(variantId: string): Promise<void> {
+  const db = await adminDb();
+  applyInventoryChanges(db, [{ variantId, locationId: "loc-shop", delta: -1 }], "sale");
+}
+
 /** Mock control: another admin edits a product (bumps its version). */
 export async function simulateOtherAdminEdit(id?: string): Promise<Product> {
   const db = await adminDb();
@@ -212,6 +302,8 @@ export async function simulateOtherAdminEdit(id?: string): Promise<Product> {
 export function failNextProductUpdate(): void {
   network.failNext("updateProduct");
 }
+
+export { network };
 
 export async function resetAdminData(): Promise<void> {
   await (await adminDb()).reset();

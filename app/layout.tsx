@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Products · Fern & Stone",
-  description: "A Shopify-style store admin. Interview starter.",
+  description: "A Shopify-style store admin. Inventory transfers interview starter.",
 };
 
 export default function RootLayout({

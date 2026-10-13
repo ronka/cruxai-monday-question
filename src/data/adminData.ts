@@ -1,3 +1,8 @@
+export const LOCATIONS = [
+  { id: "loc-central", name: "Central Warehouse", kind: "warehouse" as const },
+  { id: "loc-shop", name: "Shoreditch Shop", kind: "shop" as const },
+];
+
 export const CATEGORIES = ["Apparel", "Bags", "Home", "Kitchen", "Stationery", "Outdoors"];
 
 type Seed = [title: string, vendor: string, category: string, color: string, basePrice: number, options: string[], draft?: boolean];

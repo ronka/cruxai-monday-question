@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { getProduct, updateProduct, VersionConflictError } from "@/api/adminApi";
-import { CATEGORIES } from "@/data/adminData";
+import { adjustInventory, getInventoryLedger, getProduct, updateProduct, VersionConflictError } from "@/api/adminApi";
+import { CATEGORIES, LOCATIONS } from "@/data/adminData";
 import type { Product, ProductPatch, ProductStatus } from "@/types/admin";
 import { StatusBadge, Thumbnail } from "./bits";
 
@@ -12,7 +12,7 @@ interface Draft {
   title: string;
   category: string;
   status: ProductStatus;
-  variants: Record<string, { price: string; inventory: string }>;
+  variants: Record<string, { price: string }>;
 }
 
 function toDraft(product: Product): Draft {
@@ -21,7 +21,7 @@ function toDraft(product: Product): Draft {
     category: product.category,
     status: product.status,
     variants: Object.fromEntries(
-      product.variants.map((variant) => [variant.id, { price: (variant.priceCents / 100).toFixed(2), inventory: String(variant.inventory) }]),
+      product.variants.map((variant) => [variant.id, { price: (variant.priceCents / 100).toFixed(2) }]),
     ),
   };
 }
@@ -34,9 +34,7 @@ function toPatch(product: Product, draft: Draft): ProductPatch {
   for (const variant of product.variants) {
     const edit = draft.variants[variant.id];
     const priceCents = Math.round(Number(edit.price) * 100);
-    const inventory = Number(edit.inventory);
-    if (priceCents !== variant.priceCents || inventory !== variant.inventory)
-      (patch.variants ??= {})[variant.id] = { priceCents, inventory };
+    if (priceCents !== variant.priceCents) (patch.variants ??= {})[variant.id] = { priceCents };
   }
   return patch;
 }
@@ -45,6 +43,7 @@ function toPatch(product: Product, draft: Draft): ProductPatch {
 export function ProductEditor({ productId, onBack }: { productId: string; onBack: () => void }) {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["product", productId], queryFn: () => getProduct(productId), retry: false });
+  const ledger = useQuery({ queryKey: ["ledger", productId], queryFn: () => getInventoryLedger(productId) });
   const [base, setBase] = useState<Product | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -129,7 +128,10 @@ export function ProductEditor({ productId, onBack }: { productId: string; onBack
             <h2 className="px-4 pt-3 text-[13px] font-semibold">Variants</h2>
             <table className="mt-2 w-full text-[13px]">
               <thead className="text-left text-[12px] text-neutral-500">
-                <tr><th className="px-4 py-1.5 font-medium">Variant</th><th className="px-2 font-medium">SKU</th><th className="px-2 font-medium">Price</th><th className="px-4 font-medium">Available</th></tr>
+                <tr>
+                  <th className="px-4 py-1.5 font-medium">Variant</th><th className="px-2 font-medium">SKU</th><th className="px-2 font-medium">Price</th>
+                  {LOCATIONS.map((location) => <th key={location.id} className="px-2 font-medium">{location.name}</th>)}
+                </tr>
               </thead>
               <tbody>
                 {base.variants.map((variant) => (
@@ -142,10 +144,45 @@ export function ProductEditor({ productId, onBack }: { productId: string; onBack
                           onChange={(e) => setDraft({ ...draft, variants: { ...draft.variants, [variant.id]: { ...draft.variants[variant.id], price: e.target.value } } })} />
                       </label>
                     </td>
-                    <td className="px-4">
-                      <input aria-label={`${variant.title} inventory`} type="number" min={0} className="w-20 rounded-lg border border-neutral-300 px-2 py-1 outline-none" value={draft.variants[variant.id].inventory}
-                        onChange={(e) => setDraft({ ...draft, variants: { ...draft.variants, [variant.id]: { ...draft.variants[variant.id], inventory: e.target.value } } })} />
-                    </td>
+                    {LOCATIONS.map((location) => (
+                      <td key={location.id} className="px-2 tabular-nums">
+                        <span className="flex items-center gap-2">
+                          {query.data?.variants.find((v) => v.id === variant.id)?.levels[location.id] ?? 0}
+                          <button
+                            type="button"
+                            className="rounded border border-neutral-300 px-1.5 text-[11px] text-neutral-600 hover:bg-neutral-100"
+                            aria-label={`Adjust ${variant.title} at ${location.name}`}
+                            onClick={async () => {
+                              const delta = Number(window.prompt(`Adjust ${variant.title} at ${location.name} by (e.g. -2 or 5)`));
+                              if (!delta) return;
+                              try {
+                                await adjustInventory(variant.id, location.id, delta);
+                              } catch (cause) {
+                                setError((cause as Error).message);
+                              }
+                            }}
+                          >
+                            Adjust
+                          </button>
+                        </span>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+          <section className="rounded-xl bg-white p-4 text-[13px] shadow-[0_0_0_1px_rgba(0,0,0,0.06)]">
+            <h2 className="mb-2 font-semibold">Inventory history</h2>
+            <table className="w-full">
+              <tbody>
+                {ledger.data?.slice(0, 12).map((entry) => (
+                  <tr key={entry.id} className="border-t border-neutral-100 text-neutral-600">
+                    <td className="py-1">{new Date(entry.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+                    <td>{base.variants.find((v) => v.id === entry.variantId)?.title}</td>
+                    <td>{LOCATIONS.find((l) => l.id === entry.locationId)?.name}</td>
+                    <td className={`text-right tabular-nums ${entry.delta < 0 ? "text-red-700" : "text-emerald-700"}`}>{entry.delta > 0 ? `+${entry.delta}` : entry.delta}</td>
+                    <td className="pl-3">{entry.reason}{entry.reference && ` · ${entry.reference}`}</td>
                   </tr>
                 ))}
               </tbody>

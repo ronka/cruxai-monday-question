@@ -27,3 +27,14 @@ test("saves are atomic and reject stale versions", async () => {
   ).rejects.toThrow("non-negative");
   expect((await getProduct("prod-1")).variants[0].priceCents).not.toBe(1000);
 });
+
+test("stock changes are atomic and ledgered", async () => {
+  const { adjustInventory, getInventoryLedger } = await import("@/api/adminApi");
+  const before = await getProduct("prod-3");
+  const variant = before.variants[0];
+  await adjustInventory(variant.id, "loc-shop", 2, "count");
+  await expect(adjustInventory(variant.id, "loc-shop", -10_000)).rejects.toThrow("Not enough stock");
+  const after = await getProduct("prod-3");
+  expect(after.variants[0].levels["loc-shop"]).toBe(variant.levels["loc-shop"] + 2);
+  expect((await getInventoryLedger("prod-3"))[0]).toMatchObject({ delta: 2, reason: "count", locationId: "loc-shop" });
+});

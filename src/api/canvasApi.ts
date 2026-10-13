@@ -3,7 +3,7 @@ import { clock } from "@/mock/clock";
 import { createEmitter } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
 import { openDatabase, type LocalDatabase } from "@/mock/sqlite";
-import type { DesignDocument } from "@/types/canvas";
+import type { Artboard, DesignDocument } from "@/types/canvas";
 
 // Browser-local mock server backed by SQLite. Data persists across refreshes;
 // "Reset local data" in the mock controls restores the fixtures.
@@ -43,6 +43,23 @@ export function readDocument(db: LocalDatabase, id: string): DesignDocument {
 export async function getDocument(id: string = DOCUMENT_ID): Promise<DesignDocument> {
   const db = await canvasDb();
   return simulate("getDocument", () => readDocument(db, id));
+}
+
+/**
+ * Mock control: a teammate edits the file (changes an artboard's background
+ * and name), producing a new revision. Use it while an export is running.
+ */
+export async function simulateTeammateEdit(artboardId = "ab-home"): Promise<DesignDocument> {
+  const db = await canvasDb();
+  const current = readDocument(db, DOCUMENT_ID);
+  const palette = ["#fef3c7", "#e0f2fe", "#fce7f3", "#dcfce7", "#f3f4f6"];
+  const artboards: Artboard[] = current.artboards.map((a) =>
+    a.id === artboardId ? { ...a, background: palette[(current.revision + 1) % palette.length], name: a.name.replace(/ \(edited\)$/, "") + " (edited)" } : a,
+  );
+  const revision = current.revision + 1;
+  db.run("UPDATE documents SET revision = ?, artboards = ?, updated_at = ? WHERE id = ?", [revision, JSON.stringify(artboards), clock.date().toISOString(), DOCUMENT_ID]);
+  events.emit({ type: "document", documentId: DOCUMENT_ID, revision });
+  return readDocument(db, DOCUMENT_ID);
 }
 
 export function failNextDocumentLoad(): void {

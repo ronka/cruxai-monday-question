@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, Frame, Hash, Menu, MessageCircle, MousePointer2, Play } from "lucide-react";
-import { DOCUMENT_ID, failNextDocumentLoad, getDocument, resetCanvasData } from "@/api/canvasApi";
+import { DOCUMENT_ID, failNextDocumentLoad, getDocument, resetCanvasData, simulateTeammateEdit, subscribeToDocument } from "@/api/canvasApi";
+import { failNextExport, setArtboardExportFailure } from "@/lib/export";
 import { COLLABORATORS } from "@/data/canvasData";
 import { MockControls } from "@/mock/MockControls";
 import type { Viewport } from "@/types/canvas";
@@ -14,7 +15,9 @@ export function CanvasApp() {
   const canvas = useRef<CanvasHandle>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 0.25 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["document", DOCUMENT_ID], queryFn: () => getDocument() });
+  useEffect(() => subscribeToDocument(() => void queryClient.invalidateQueries({ queryKey: ["document"] })), [queryClient]);
   const document = query.data;
   const artboards = document?.artboards ?? [];
   const selected = artboards.find((artboard) => artboard.id === selectedId) ?? null;
@@ -146,14 +149,32 @@ export function CanvasApp() {
               <p className="flex items-center gap-2 text-neutral-600">
                 <span className="h-4 w-4 rounded border border-neutral-300" style={{ background: selected.background }} /> {selected.background}
               </p>
-              <p className="text-neutral-400">{selected.layers.length} layers</p>
+              <p className="text-neutral-400">{selected.layers.length} layers · revision {document?.revision}</p>
+              <div className="border-t border-neutral-200 pt-3">
+                <p className="mb-1 font-semibold">Export</p>
+                <p className="text-neutral-400">Not implemented yet.</p>
+              </div>
             </div>
           ) : (
             <p className="px-4 py-3 text-neutral-500">Select an artboard to inspect it. Shift+1 fits everything; Shift+2 zooms to the selection.</p>
           )}
         </aside>
       </div>
-      <MockControls sections={[{ title: "Failures", actions: [{ label: "Fail next file load (then reload)", run: failNextDocumentLoad }] }]} onReset={resetCanvasData} />
+      <MockControls
+        sections={[
+          { title: "Teammates", actions: [{ label: "Teammate edits “Home — Mobile”", run: () => simulateTeammateEdit("ab-home") }] },
+          {
+            title: "Export failures",
+            actions: [
+              { label: "Fail the next export", run: failNextExport },
+              { label: "Always fail “Dashboard — Desktop”", run: () => setArtboardExportFailure("ab-dashboard", true) },
+              { label: "Stop failing “Dashboard — Desktop”", run: () => setArtboardExportFailure("ab-dashboard", false) },
+              { label: "Fail next file load (then reload)", run: failNextDocumentLoad },
+            ],
+          },
+        ]}
+        onReset={resetCanvasData}
+      />
     </div>
   );
 }

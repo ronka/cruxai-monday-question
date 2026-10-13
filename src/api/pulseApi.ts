@@ -10,7 +10,7 @@ import type { Aggregation, Dashboard, MetricName, MetricQuery, MetricResult, Ser
 // SQLite; "Reset local data" in the mock controls restores the fixture.
 
 /** Metric samples exist from 30 days before the mock clock's start. */
-export const RETENTION_MS = 30 * DAY;
+export const RETENTION_MS = 60 * DAY;
 
 function noise(seed: string): number {
   let h = 2166136261;
@@ -29,6 +29,10 @@ const REGION_SCALE: Record<string, number> = { "us-east-1": 0.6, "eu-west-1": 0.
  */
 export function sample(metric: MetricName, env: string, service: string, region: string, t: number): number | null {
   const minute = Math.floor(t / MINUTE) * MINUTE;
+  // Collector outage: nothing reported for any series (missing, not zero).
+  if (minute >= OUTAGE.from && minute < OUTAGE.to) return null;
+  // Maintenance window: traffic was drained, so requests are a real 0.
+  if (metric === "requests" && minute >= MAINTENANCE.from && minute < MAINTENANCE.to) return 0;
   const hourOfDay = new Date(minute).getUTCHours() + new Date(minute).getUTCMinutes() / 60;
   if (service === "worker" && region === "eu-west-1" && hourOfDay >= 3 && hourOfDay < 3 + 40 / 60) return null;
   const daily = 1 + 0.35 * Math.sin(((hourOfDay - 9) / 24) * 2 * Math.PI);
@@ -52,6 +56,11 @@ export function sample(metric: MetricName, env: string, service: string, region:
   }
 }
 const DEFAULT_NOW = () => Date.parse("2026-10-13T09:00:00Z");
+
+/** Missing-data fixture: a collector outage exactly one week before 07:00–07:30 UTC today. */
+export const OUTAGE = { from: Date.parse("2026-10-06T07:00:00Z"), to: Date.parse("2026-10-06T07:30:00Z") };
+/** Zero-data fixture: requests are 0 during yesterday's maintenance window. */
+export const MAINTENANCE = { from: Date.parse("2026-10-12T02:00:00Z"), to: Date.parse("2026-10-12T02:20:00Z") };
 
 function aggregate(values: number[], aggregation: Aggregation): number | null {
   if (values.length === 0) return null;

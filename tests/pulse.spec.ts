@@ -33,3 +33,11 @@ test("saves detect a newer version", async () => {
   await simulateTeammateSave();
   await expect(saveDashboard(dashboard.id, { title: "Mine" }, dashboard.version)).rejects.toBeInstanceOf(DashboardConflictError);
 });
+
+test("outage is missing data, maintenance is real zero", async () => {
+  const { MAINTENANCE, OUTAGE } = await import("@/api/pulseApi");
+  expect(sample("requests", "prod", "api", "us-east-1", OUTAGE.from + MINUTE)).toBeNull();
+  expect(sample("requests", "prod", "api", "us-east-1", MAINTENANCE.from + MINUTE)).toBe(0);
+  const lastWeek = evaluate({ metric: "requests", from: OUTAGE.from - HOUR, to: OUTAGE.to + HOUR });
+  expect(lastWeek.series[0].points.some((p) => p.v === null)).toBe(true);
+});

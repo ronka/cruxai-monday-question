@@ -8,6 +8,7 @@ import { TIME_RANGES, type TimeRangeId } from "@/data/pulseData";
 import { clock, MINUTE } from "@/mock/clock";
 import { MockControls, useMockClock } from "@/mock/MockControls";
 import { network } from "@/mock/network";
+import { TIME_ZONES } from "@/lib/time";
 import { WidgetView } from "./WidgetView";
 
 const ROW_PX = 72;
@@ -18,6 +19,8 @@ export function PulseApp() {
   const [range, setRange] = useState<TimeRangeId>("4h");
   const [live, setLive] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  /** Display time zone for axes and tooltips (user preference). */
+  const [timeZone, setTimeZone] = useState("America/New_York");
   const dashboard = useQuery({ queryKey: ["dashboard"], queryFn: () => getDashboard() });
 
   useEffect(() => {
@@ -74,11 +77,14 @@ export function PulseApp() {
                 {TIME_RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
               </select>
             </label>
+            <select aria-label="Time zone" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5" value={timeZone} onChange={(e) => setTimeZone(e.target.value)}>
+              {["UTC", ...TIME_ZONES].map((zone) => <option key={zone} value={zone}>{zone}</option>)}
+            </select>
             <button type="button" aria-pressed={live} onClick={() => setLive((v) => !v)} className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 ${live ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-zinc-300"}`}>
               <span className={`h-2 w-2 rounded-full ${live ? "bg-emerald-500" : "bg-zinc-400"}`} /> {live ? "Live" : "Paused"}
             </button>
             <span className="tabular-nums text-[12px] text-zinc-500">
-              {new Date(from).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} – {new Date(to).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+              {new Date(from).toLocaleString("en-US", { timeZone, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} – {new Date(to).toLocaleString("en-US", { timeZone, hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
             </span>
           </div>
         </header>
@@ -89,7 +95,7 @@ export function PulseApp() {
             <div className="relative grid grid-cols-12 gap-3" style={{ gridTemplateRows: `repeat(${rows}, ${ROW_PX}px)` }}>
               {dashboard.data.widgets.map((widget) => (
                 <div key={widget.id} style={{ gridColumn: `${widget.layout.x + 1} / span ${widget.layout.w}`, gridRow: `${widget.layout.y + 1} / span ${widget.layout.h}` }}>
-                  <WidgetView widget={widget} from={from} to={to} refreshKey={refreshKey} />
+                  <WidgetView widget={widget} from={from} to={to} refreshKey={refreshKey} timeZone={timeZone} />
                 </div>
               ))}
             </div>
@@ -100,7 +106,15 @@ export function PulseApp() {
       </div>
       <MockControls
         showClock
+        timeZone={timeZone}
         sections={[
+          {
+            title: "Time",
+            actions: [
+              { label: "Jump to Nov 3, 09:00 New York (after DST ends)", run: () => clock.set(Date.parse("2026-11-03T14:00:00Z")) },
+              { label: "Back to Oct 13, 09:00 UTC", run: () => clock.reset() },
+            ],
+          },
           { title: "Teammates", actions: [{ label: "Ravi saves a newer dashboard version", run: () => simulateTeammateSave() }] },
           {
             title: "Queries",

@@ -55,3 +55,27 @@ export interface SearchResult {
   listing: Listing;
   quote: Quote;
 }
+
+export interface Traveler {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export type GroupRole = "editor" | "viewer";
+
+export interface TravelGroup {
+  id: string;
+  name: string;
+  members: { travelerId: string; role: GroupRole }[];
+}
+
+/**
+ * Something another traveler does, delivered by the mock controls. The
+ * starter only emits these; applying them to wishlists is part of the task.
+ */
+export type CollaboratorAction =
+  | { type: "save"; travelerId: string; listingId: string }
+  | { type: "unsave"; travelerId: string; listingId: string }
+  | { type: "vote"; travelerId: string; listingId: string; value: 1 | -1 | 0 }
+  | { type: "note"; travelerId: string; listingId: string; text: string };

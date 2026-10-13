@@ -54,3 +54,32 @@ export const CALENDAR_END = "2027-03-01";
 export function formatMoney(cents: number): string {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: cents % 100 ? 2 : 0 });
 }
+
+export const CURRENT_TRAVELER_ID = "sam";
+export const travelers = [
+  { id: "sam", name: "Sam Ortiz", color: "#222222" },
+  { id: "priya", name: "Priya Nair", color: "#e61e4d" },
+  { id: "leo", name: "Leo Brandt", color: "#008489" },
+  { id: "ana", name: "Ana Costa", color: "#c13584" },
+];
+
+export const groups = [
+  {
+    id: "g-lisbon",
+    name: "Lisbon long weekend",
+    members: [
+      { travelerId: "sam", role: "editor" as const },
+      { travelerId: "priya", role: "editor" as const },
+      { travelerId: "ana", role: "editor" as const },
+      { travelerId: "leo", role: "viewer" as const },
+    ],
+  },
+  {
+    id: "g-kyoto",
+    name: "Kyoto in spring",
+    members: [
+      { travelerId: "leo", role: "editor" as const },
+      { travelerId: "sam", role: "viewer" as const },
+    ],
+  },
+];

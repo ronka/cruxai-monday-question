@@ -1,14 +1,14 @@
-import { CALENDAR_END, CALENDAR_START, seedListings } from "@/data/stayData";
+import { CALENDAR_END, CALENDAR_START, groups, seedListings, travelers } from "@/data/stayData";
 import { addDays, eachNight, nightsBetween } from "@/lib/dates";
 import { createEmitter } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
 import { openDatabase, type LocalDatabase } from "@/mock/sqlite";
-import type { CalendarDay, Listing, QuoteResult, SearchResult, StayQuery } from "@/types/stay";
+import type { CalendarDay, CollaboratorAction, GroupRole, Listing, QuoteResult, SearchResult, StayQuery, Traveler, TravelGroup } from "@/types/stay";
 
 // Browser-local mock server backed by SQLite. Data persists across refreshes;
 // "Reset local data" in the mock controls restores the fixtures.
 const SCHEMA = `
-CREATE TABLE listings (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+CREATE TABLE listings (id TEXT PRIMARY KEY, data TEXT NOT NULL, removed_at TEXT);
 CREATE TABLE calendar (
   listing_id TEXT NOT NULL,
   date TEXT NOT NULL,
@@ -32,7 +32,7 @@ export function stayDb(): Promise<LocalDatabase> {
     schema: SCHEMA,
     seed: (db) => {
       for (const { baseNightlyCents, ...listing } of seedListings) {
-        db.run("INSERT INTO listings VALUES (?, ?)", [listing.id, JSON.stringify(listing)]);
+        db.run("INSERT INTO listings VALUES (?, ?, NULL)", [listing.id, JSON.stringify(listing)]);
         for (let date = CALENDAR_START; date < CALENDAR_END; date = addDays(date, 1)) {
           const day = new Date(`${date}T00:00:00Z`).getUTCDay();
           const weekend = day === 5 || day === 6 ? 1.25 : 1;
@@ -53,10 +53,19 @@ const events = createEmitter<{ type: "calendar"; listingId: string }>();
 /** Emitted when availability or prices change (e.g. through mock controls). */
 export const subscribeToStays = events.subscribe;
 
+export class ListingRemovedError extends Error {
+  constructor(readonly listingId: string, readonly title: string) {
+    super(`“${title}” is no longer listed`);
+    this.name = "ListingRemovedError";
+  }
+}
+
 function readListing(db: LocalDatabase, id: string): Listing {
-  const row = db.get<{ data: string }>("SELECT data FROM listings WHERE id = ?", [id]);
+  const row = db.get<{ data: string; removed_at: string | null }>("SELECT data, removed_at FROM listings WHERE id = ?", [id]);
   if (!row) throw new Error("Listing not found");
-  return JSON.parse(row.data);
+  const listing = JSON.parse(row.data) as Listing;
+  if (row.removed_at) throw new ListingRemovedError(id, listing.title);
+  return listing;
 }
 
 function calendar(db: LocalDatabase, listingId: string, from: string, to: string): CalendarDay[] {
@@ -90,7 +99,7 @@ export function quoteStay(db: LocalDatabase, listing: Listing, checkIn: string, 
 export async function searchStays(query: StayQuery): Promise<SearchResult[]> {
   const db = await stayDb();
   return simulate("searchStays", () => {
-    const listings = db.all<{ data: string }>("SELECT data FROM listings").map((row) => JSON.parse(row.data) as Listing);
+    const listings = db.all<{ data: string }>("SELECT data FROM listings WHERE removed_at IS NULL").map((row) => JSON.parse(row.data) as Listing);
     return listings
       .filter((listing) => !query.destination || listing.city.toLowerCase() === query.destination.trim().toLowerCase())
       .flatMap((listing) => {
@@ -104,7 +113,7 @@ export async function listListings(destination?: string): Promise<Listing[]> {
   const db = await stayDb();
   return simulate("listListings", () =>
     db
-      .all<{ data: string }>("SELECT data FROM listings")
+      .all<{ data: string }>("SELECT data FROM listings WHERE removed_at IS NULL")
       .map((row) => JSON.parse(row.data) as Listing)
       .filter((listing) => !destination || listing.city.toLowerCase() === destination.toLowerCase()),
   );
@@ -142,6 +151,35 @@ export async function simulatePriceChange(listingId: string, percent: number, fr
   const db = await stayDb();
   db.run("UPDATE calendar SET price_cents = CAST(ROUND(price_cents * (100 + ?) / 100.0 / 100) * 100 AS INTEGER) WHERE listing_id = ? AND date >= ?", [percent, listingId, from]);
   events.emit({ type: "calendar", listingId });
+}
+
+export async function listTravelers(): Promise<Traveler[]> {
+  return simulate("listTravelers", () => travelers);
+}
+
+/** Groups the traveler belongs to. */
+export async function listGroups(travelerId: string): Promise<TravelGroup[]> {
+  return simulate("listGroups", () => groups.filter((group) => group.members.some((m) => m.travelerId === travelerId)));
+}
+
+/** The traveler's role in a group, or null if not a member. Use it to enforce permissions in your API. */
+export function roleIn(groupId: string, travelerId: string): GroupRole | null {
+  return groups.find((group) => group.id === groupId)?.members.find((m) => m.travelerId === travelerId)?.role ?? null;
+}
+
+/** Mock control: the host removes a listing. Later reads reject with ListingRemovedError. */
+export async function simulateListingRemoval(listingId: string): Promise<void> {
+  const db = await stayDb();
+  readListing(db, listingId);
+  db.run("UPDATE listings SET removed_at = datetime('now') WHERE id = ?", [listingId]);
+  events.emit({ type: "calendar", listingId });
+}
+
+const collaborators = createEmitter<CollaboratorAction & { groupId: string }>();
+/** Actions by other travelers (from the mock controls). Apply them through your wishlist API. */
+export const subscribeToCollaborators = collaborators.subscribe;
+export function simulateCollaboratorAction(groupId: string, action: CollaboratorAction): void {
+  collaborators.emit({ ...action, groupId });
 }
 
 export function failNextSearch(): void {

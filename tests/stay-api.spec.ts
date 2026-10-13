@@ -36,3 +36,17 @@ test("exact search excludes listings with an unavailable night", async () => {
   expect(after.some((r) => r.listing.id === "l-1")).toBe(false);
   expect(after.length).toBe(before.filter((r) => r.listing.id !== "l-1").length);
 });
+
+test("groups, roles, collaborator events and listing removal", async () => {
+  const { getListing, listGroups, ListingRemovedError, roleIn, simulateCollaboratorAction, simulateListingRemoval, subscribeToCollaborators } = await import("@/api/stayApi");
+  expect((await listGroups("sam")).map((g) => g.id)).toEqual(["g-lisbon", "g-kyoto"]);
+  expect(roleIn("g-lisbon", "leo")).toBe("viewer");
+  expect(roleIn("g-kyoto", "priya")).toBeNull();
+  const seen: unknown[] = [];
+  const unsubscribe = subscribeToCollaborators((event) => seen.push(event));
+  simulateCollaboratorAction("g-lisbon", { type: "vote", travelerId: "ana", listingId: "l-1", value: -1 });
+  unsubscribe();
+  expect(seen).toEqual([{ groupId: "g-lisbon", type: "vote", travelerId: "ana", listingId: "l-1", value: -1 }]);
+  await simulateListingRemoval("l-2");
+  await expect(getListing("l-2")).rejects.toBeInstanceOf(ListingRemovedError);
+});

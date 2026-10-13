@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Platform overview · Pulse",
-  description: "A Datadog-style monitoring dashboard. Interview starter.",
+  description: "A Datadog-style monitoring dashboard. Dashboard editing interview starter.",
 };
 
 export default function RootLayout({

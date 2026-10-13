@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Agenda — Rina Sato",
-  description: "A Google Calendar-style calendar. Interview starter.",
+  description: "A Google Calendar-style calendar. Recurring events interview starter.",
 };
 
 export default function RootLayout({

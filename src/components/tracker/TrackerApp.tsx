@@ -16,6 +16,7 @@ import {
   updateIssue,
 } from "@/api/trackerApi";
 import { currentUserId, users } from "@/data/trackerData";
+import { clock } from "@/mock/clock";
 import { MockControls } from "@/mock/MockControls";
 import type { Issue, IssuePatch } from "@/types/tracker";
 import { Avatar } from "./bits";
@@ -197,10 +198,17 @@ export function TrackerApp() {
         </div>
       </div>
       <MockControls
+        showClock
         sections={[
           {
             title: "Teammates",
             actions: [{ label: "Teammate advances an issue's status", run: () => simulateTeammateStatusChange(projectId) }],
+          },
+          {
+            title: "Cycles",
+            actions: [
+              { label: "Jump to Oct 19 (cycle 12 has ended)", run: () => clock.set(Date.parse("2026-10-19T09:00:00Z")) },
+            ],
           },
           { title: "Failures", actions: [{ label: "Fail next issue update", run: failNextIssueUpdate }] },
         ]}

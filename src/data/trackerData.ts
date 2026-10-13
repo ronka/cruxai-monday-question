@@ -64,3 +64,24 @@ export const descriptions: Record<string, string> = {
   "Paginate /issues with cursors": "Offset pagination breaks when issues move between pages. Switch to opaque cursors.",
   "Offline queue for issue edits": "Queue edits made offline and replay them in order when the connection returns.",
 };
+
+/** Two-week cycles. With the default mock clock (Oct 13), cycle 12 is current. */
+export const seedCycles = [
+  { id: "c-12", number: 12, startsAt: "2026-10-05T00:00:00.000Z", endsAt: "2026-10-19T00:00:00.000Z" },
+  { id: "c-13", number: 13, startsAt: "2026-10-19T00:00:00.000Z", endsAt: "2026-11-02T00:00:00.000Z" },
+];
+/** Seeded cycle assignments by issue title. */
+export const seedCycleAssignments: Record<string, string> = {
+  "Redesign settings navigation": "c-12",
+  "Keyboard shortcut for command menu": "c-12",
+  "Fix flicker when switching workspaces": "c-12",
+  "Inline image previews in comments": "c-12",
+  "Drag issues between sidebar projects": "c-12",
+  "Rate-limit headers on all endpoints": "c-12",
+  "Paginate /issues with cursors": "c-12",
+  "Fix 500 on empty label filter": "c-12",
+  "Offline queue for issue edits": "c-12",
+  "Dark mode contrast fixes": "c-12",
+  "Webhook retries with exponential backoff": "c-13",
+  "Push notification settings screen": "c-13",
+};

@@ -22,12 +22,13 @@ function describe(field: string, from: string | null, to: string | null) {
     if (field === "priority") return PRIORITIES.find((p) => String(p.id) === value)?.label ?? value;
     if (field === "assigneeId") return users.find((u) => u.id === value)?.name ?? value;
     if (field === "projectId") return projects.find((p) => p.id === value)?.name ?? value;
+    if (field === "cycleId") return value.replace("c-", "Cycle ");
     return value;
   };
   if (field === "created") return "created the issue";
   if (field === "archived") return to === "true" ? "archived the issue" : "restored the issue";
   if (field === "description") return "updated the description";
-  return `changed ${field === "assigneeId" ? "assignee" : field} from ${label(from)} to ${label(to)}`;
+  return `changed ${field === "assigneeId" ? "assignee" : field === "cycleId" ? "cycle" : field} from ${label(from)} to ${label(to)}`;
 }
 
 /** Issue detail panel: properties, description, and activity history. */
@@ -117,6 +118,8 @@ export function IssueDetail({ issueRef, onClose, onUpdate, onArchive, onDelete }
                 {[1, 2, 3, 5, 8].map((points) => <option key={points} value={points}>{points} points</option>)}
               </select>
             </dd>
+            <dt className="text-zinc-500">Cycle</dt>
+            <dd className="px-1.5 py-1">{issue.cycleId ? issue.cycleId.replace("c-", "Cycle ") : <span className="text-zinc-400">None</span>}</dd>
             <dt className="text-zinc-500">Project</dt>
             <dd className="px-1.5 py-1">{projects.find((p) => p.id === issue.projectId)?.name}</dd>
           </dl>

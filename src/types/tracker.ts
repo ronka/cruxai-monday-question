@@ -30,6 +30,8 @@ export interface Issue {
   /** Story points. Null means unestimated. */
   estimate: number | null;
   archivedAt: string | null;
+  /** Cycle the issue is planned into, or null. */
+  cycleId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +46,16 @@ export interface IssueHistoryEntry {
   at: string;
 }
 
-export type IssuePatch = Partial<Pick<Issue, "title" | "description" | "status" | "priority" | "assigneeId" | "estimate" | "projectId">>;
+export type IssuePatch = Partial<Pick<Issue, "title" | "description" | "status" | "priority" | "assigneeId" | "estimate" | "projectId" | "cycleId">>;
 
 export type TrackerEvent = { type: "issue"; issueId: string } | { type: "deleted"; issueId: string };
+
+export interface Cycle {
+  id: string;
+  number: number;
+  /** Inclusive start, exclusive end (ISO timestamps). */
+  startsAt: string;
+  endsAt: string;
+  /** Set when the cycle has been closed. */
+  closedAt: string | null;
+}

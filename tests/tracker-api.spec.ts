@@ -39,3 +39,13 @@ test("identifiers increment per project and deleted issues reject", async () => 
   await deleteIssue(issue.id);
   await expect(getIssue("MOB-7")).rejects.toThrow("Issue not found");
 });
+
+test("cycles are seeded and cycle changes are recorded", async () => {
+  const { listCycles, getCycleIssues } = await import("@/api/trackerApi");
+  const cycles = await listCycles();
+  expect(cycles.map((cycle) => cycle.number)).toEqual([12, 13]);
+  const current = await getCycleIssues("c-12");
+  expect(current.length).toBeGreaterThan(5);
+  await updateIssue("WEB-2", { cycleId: "c-13" });
+  expect((await getIssueHistory("i-2")).at(-1)).toMatchObject({ field: "cycleId", from: "c-12", to: "c-13" });
+});

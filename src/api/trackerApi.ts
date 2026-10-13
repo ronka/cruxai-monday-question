@@ -1,9 +1,9 @@
-import { currentUserId, descriptions, projects, seedIssues, users } from "@/data/trackerData";
+import { currentUserId, descriptions, projects, seedCycleAssignments, seedCycles, seedIssues, users } from "@/data/trackerData";
 import { clock, HOUR } from "@/mock/clock";
 import { createEmitter, newId } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
 import { openDatabase, type LocalDatabase } from "@/mock/sqlite";
-import type { Issue, IssueHistoryEntry, IssuePatch, IssueStatus, Project, TrackerEvent } from "@/types/tracker";
+import type { Cycle, Issue, IssueHistoryEntry, IssuePatch, IssueStatus, Project, TrackerEvent } from "@/types/tracker";
 
 // Browser-local mock server backed by SQLite. Data persists across refreshes;
 // "Reset local data" in the mock controls restores the fixtures.
@@ -19,8 +19,16 @@ CREATE TABLE issues (
   assignee_id TEXT,
   estimate REAL,
   archived_at TEXT,
+  cycle_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+CREATE TABLE cycles (
+  id TEXT PRIMARY KEY,
+  number INTEGER NOT NULL UNIQUE,
+  starts_at TEXT NOT NULL,
+  ends_at TEXT NOT NULL,
+  closed_at TEXT
 );
 CREATE TABLE issue_history (
   id TEXT PRIMARY KEY,
@@ -45,7 +53,7 @@ export function trackerDb(): Promise<LocalDatabase> {
         const project = projects.find((item) => item.id === projectId)!;
         counts[projectId] = (counts[projectId] ?? 0) + 1;
         const created = new Date(clock.now() - (seedIssues.length - index) * 9 * HOUR).toISOString();
-        db.run("INSERT INTO issues VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        db.run("INSERT INTO issues VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           `i-${index + 1}`,
           `${project.key}-${counts[projectId]}`,
           projectId,
@@ -56,6 +64,7 @@ export function trackerDb(): Promise<LocalDatabase> {
           assigneeId,
           estimate,
           archived ? created : null,
+          seedCycleAssignments[title] ?? null,
           created,
           created,
         ]);
@@ -67,6 +76,8 @@ export function trackerDb(): Promise<LocalDatabase> {
           created,
         ]);
       });
+      for (const cycle of seedCycles)
+        db.run("INSERT INTO cycles VALUES (?, ?, ?, ?, NULL)", [cycle.id, cycle.number, cycle.startsAt, cycle.endsAt]);
       for (const project of projects)
         db.run("INSERT INTO counters VALUES (?, ?)", [project.id, (counts[project.id] ?? 0) + 1]);
     },
@@ -88,6 +99,7 @@ type IssueRow = {
   assignee_id: string | null;
   estimate: number | null;
   archived_at: string | null;
+  cycle_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -102,6 +114,7 @@ export const toIssue = (row: IssueRow): Issue => ({
   assigneeId: row.assignee_id,
   estimate: row.estimate,
   archivedAt: row.archived_at,
+  cycleId: row.cycle_id,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -177,6 +190,7 @@ function applyPatch(db: LocalDatabase, id: string, patch: IssuePatch, actorId: s
     assigneeId: "assignee_id",
     estimate: "estimate",
     projectId: "project_id",
+    cycleId: "cycle_id",
   };
   db.transaction(() => {
     for (const [key, value] of Object.entries(patch) as [keyof IssuePatch, unknown][]) {
@@ -214,7 +228,7 @@ export async function createIssue(input: { projectId: string; title: string; sta
     db.transaction(() => {
       const { next } = db.get<{ next: number }>("SELECT next FROM counters WHERE project_id = ?", [project.id])!;
       db.run("UPDATE counters SET next = next + 1 WHERE project_id = ?", [project.id]);
-      db.run("INSERT INTO issues VALUES (?, ?, ?, ?, '', ?, ?, ?, NULL, NULL, ?, ?)", [
+      db.run("INSERT INTO issues VALUES (?, ?, ?, ?, '', ?, ?, ?, NULL, NULL, NULL, ?, ?)", [
         id,
         `${project.key}-${next}`,
         project.id,
@@ -255,6 +269,36 @@ export async function deleteIssue(id: string): Promise<void> {
     });
     events.emit({ type: "deleted", issueId: issue.id });
   });
+}
+
+type CycleRow = { id: string; number: number; starts_at: string; ends_at: string; closed_at: string | null };
+const toCycle = (row: CycleRow): Cycle => ({
+  id: row.id,
+  number: row.number,
+  startsAt: row.starts_at,
+  endsAt: row.ends_at,
+  closedAt: row.closed_at,
+});
+
+export async function listCycles(): Promise<Cycle[]> {
+  const db = await trackerDb();
+  return simulate("listCycles", () => db.all<CycleRow>("SELECT * FROM cycles ORDER BY number").map(toCycle));
+}
+
+/** Non-archived issues planned into a cycle, across all projects. */
+export async function getCycleIssues(cycleId: string): Promise<Issue[]> {
+  const db = await trackerDb();
+  return simulate("getCycleIssues", () =>
+    db.all<IssueRow>("SELECT * FROM issues WHERE cycle_id = ? AND archived_at IS NULL ORDER BY priority = 0, priority", [cycleId]).map(toIssue),
+  );
+}
+
+/** Non-archived issues in any project that are not in a cycle. */
+export async function getUnplannedIssues(): Promise<Issue[]> {
+  const db = await trackerDb();
+  return simulate("getUnplannedIssues", () =>
+    db.all<IssueRow>("SELECT * FROM issues WHERE cycle_id IS NULL AND archived_at IS NULL ORDER BY priority = 0, priority").map(toIssue),
+  );
 }
 
 /** Mock control: a teammate moves a random open issue in the project to the next status. */

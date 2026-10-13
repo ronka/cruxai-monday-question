@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Tracker — Northwind",
-  description: "A Linear-style issue tracker. Interview starter.",
+  description: "A Linear-style issue tracker. Cycle planning interview starter.",
 };
 
 export default function RootLayout({

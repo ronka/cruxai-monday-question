@@ -3,8 +3,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Interview starter",
-  description: "Feature implementation interview starter.",
+  title: "Add per-client rate limiting · Pull Request #482",
+  description: "A GitHub-style pull request review page. Interview starter.",
 };
 
 export default function RootLayout({

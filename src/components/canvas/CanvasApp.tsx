@@ -1,12 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, Frame, Hash, Menu, MessageCircle, MousePointer2, Play } from "lucide-react";
-import { DOCUMENT_ID, failNextDocumentLoad, getDocument, resetCanvasData } from "@/api/canvasApi";
+import {
+  DOCUMENT_ID,
+  failNextDocumentLoad,
+  failNextSave,
+  getDocument,
+  RevisionConflictError,
+  resetCanvasData,
+  saveDocument,
+  simulateTeammateSave,
+  subscribeToDocument,
+} from "@/api/canvasApi";
 import { COLLABORATORS } from "@/data/canvasData";
 import { MockControls } from "@/mock/MockControls";
-import type { Viewport } from "@/types/canvas";
+import type { Artboard, Viewport } from "@/types/canvas";
 import { CanvasView, type CanvasHandle } from "./CanvasView";
 import { boundsOf, fitBounds, zoomAt } from "./viewport";
 
@@ -14,9 +24,40 @@ export function CanvasApp() {
   const canvas = useRef<CanvasHandle>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 0.25 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["document", DOCUMENT_ID], queryFn: () => getDocument() });
   const document = query.data;
-  const artboards = document?.artboards ?? [];
+  /** Unsaved local edits (names and positions), based on `draftRevision`. */
+  const [draft, setDraft] = useState<Artboard[] | null>(null);
+  const [draftRevision, setDraftRevision] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const artboards = draft ?? document?.artboards ?? [];
+  useEffect(() => subscribeToDocument(() => void queryClient.invalidateQueries({ queryKey: ["document"] })), [queryClient]);
+
+  const edit = useCallback(
+    (id: string, patch: Partial<Pick<Artboard, "name" | "x" | "y">>) => {
+      if (!document) return;
+      setDraft((current) => (current ?? document.artboards).map((a) => (a.id === id ? { ...a, ...patch } : a)));
+      setDraftRevision((revision) => revision ?? document.revision);
+    },
+    [document],
+  );
+  async function save() {
+    if (!draft || draftRevision === null) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const saved = await saveDocument(DOCUMENT_ID, draft, draftRevision);
+      queryClient.setQueryData(["document", DOCUMENT_ID], saved);
+      setDraft(null);
+      setDraftRevision(null);
+    } catch (cause) {
+      setSaveError((cause as Error).message + (cause instanceof RevisionConflictError ? " Your edits are kept locally." : ""));
+    } finally {
+      setSaving(false);
+    }
+  }
   const selected = artboards.find((artboard) => artboard.id === selectedId) ?? null;
 
   const fitAll = useCallback(() => {
@@ -85,6 +126,11 @@ export function CanvasApp() {
             </span>
           ))}
         </div>
+        {draft && <span className="mr-1 text-[12px] text-amber-300">Unsaved changes</span>}
+        <button type="button" disabled={!draft || saving} onClick={() => void save()} className="mr-1 rounded-md border border-white/20 px-3 py-1.5 disabled:opacity-40">
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <span className="text-[11px] text-neutral-400">rev {document?.revision ?? "–"}</span>
         <Play className="mx-2 h-4 w-4" />
         <span className="rounded-md bg-[#0d99ff] px-3 py-1.5 font-medium">Share</span>
         <div className="ml-2 flex items-center rounded hover:bg-white/10" role="group" aria-label="Zoom">
@@ -125,7 +171,20 @@ export function CanvasApp() {
           ) : query.isPending ? (
             <p role="status" className="p-6 text-neutral-500">Opening file…</p>
           ) : null}
-          <CanvasView ref={canvas} artboards={artboards} viewport={viewport} onViewportChange={setViewport} selectedId={selectedId} onSelect={setSelectedId} />
+          {saveError && (
+            <p role="alert" className="absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-md bg-red-600 px-3 py-2 text-white shadow">
+              {saveError} <button className="ml-2 underline" onClick={() => setSaveError("")}>Dismiss</button>
+            </p>
+          )}
+          <CanvasView
+            ref={canvas}
+            artboards={artboards}
+            viewport={viewport}
+            onViewportChange={setViewport}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onMoveArtboard={(id, x, y) => edit(id, { x, y })}
+          />
         </main>
         <aside aria-label="Properties" className="w-64 shrink-0 border-l border-neutral-200 bg-white">
           <div className="flex gap-4 border-b border-neutral-200 px-4 py-3 font-semibold">
@@ -134,12 +193,29 @@ export function CanvasApp() {
           </div>
           {selected ? (
             <div className="space-y-3 px-4 py-3">
-              <p className="font-semibold">{selected.name}</p>
+              <input
+                aria-label="Artboard name"
+                className="w-full rounded border border-transparent px-1 py-0.5 font-semibold hover:border-neutral-200 focus:border-[#0d99ff] focus:outline-none"
+                value={selected.name}
+                onChange={(e) => edit(selected.id, { name: e.target.value })}
+              />
               <dl className="grid grid-cols-2 gap-2 text-neutral-600">
                 {(["x", "y", "width", "height"] as const).map((key) => (
                   <div key={key} className="flex items-center gap-2 rounded bg-neutral-100 px-2 py-1">
                     <dt className="uppercase text-neutral-400">{key === "width" ? "W" : key === "height" ? "H" : key}</dt>
-                    <dd className="tabular-nums">{selected[key]}</dd>
+                    <dd className="tabular-nums">
+                      {key === "x" || key === "y" ? (
+                        <input
+                          aria-label={key.toUpperCase()}
+                          type="number"
+                          className="w-16 bg-transparent outline-none"
+                          value={selected[key]}
+                          onChange={(e) => edit(selected.id, { [key]: Number(e.target.value) })}
+                        />
+                      ) : (
+                        selected[key]
+                      )}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -153,7 +229,19 @@ export function CanvasApp() {
           )}
         </aside>
       </div>
-      <MockControls sections={[{ title: "Failures", actions: [{ label: "Fail next file load (then reload)", run: failNextDocumentLoad }] }]} onReset={resetCanvasData} />
+      <MockControls
+        sections={[
+          { title: "Teammates", actions: [{ label: "Teammate saves a newer revision", run: simulateTeammateSave }] },
+          {
+            title: "Failures",
+            actions: [
+              { label: "Fail next save", run: failNextSave },
+              { label: "Fail next file load (then reload)", run: failNextDocumentLoad },
+            ],
+          },
+        ]}
+        onReset={resetCanvasData}
+      />
     </div>
   );
 }

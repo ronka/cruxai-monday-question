@@ -30,3 +30,18 @@ export interface Viewport {
   y: number;
   zoom: number;
 }
+
+/** Immutable snapshot of a document at a revision. */
+export interface DocumentVersion {
+  id: string;
+  documentId: string;
+  /** Named checkpoints have a label; autosaves have null. */
+  label: string | null;
+  revision: number;
+  authorId: string;
+  createdAt: string;
+}
+
+export interface DocumentVersionSnapshot extends DocumentVersion {
+  artboards: Artboard[];
+}

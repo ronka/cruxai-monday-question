@@ -21,6 +21,8 @@ interface Props {
   children?: ReactNode;
   /** Rendered in screen coordinates, above everything (not scaled). */
   overlay?: ReactNode;
+  /** When provided, dragging an artboard's name label moves the artboard. */
+  onMoveArtboard?: (id: string, x: number, y: number) => void;
 }
 
 /**
@@ -28,7 +30,7 @@ interface Props {
  * drag anywhere) to pan; scroll to pan; Ctrl/⌘ + scroll or pinch to zoom.
  */
 export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView(
-  { artboards, viewport, onViewportChange, selectedId, onSelect, children, overlay },
+  { artboards, viewport, onViewportChange, selectedId, onSelect, children, overlay, onMoveArtboard },
   ref,
 ) {
   const element = useRef<HTMLDivElement>(null);
@@ -36,6 +38,23 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView(
   viewportRef.current = viewport;
   const [panning, setPanning] = useState<{ x: number; y: number; origin: Viewport } | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
+  const [moving, setMoving] = useState<{ id: string; x: number; y: number; originX: number; originY: number } | null>(null);
+  useEffect(() => {
+    if (!moving || !onMoveArtboard) return;
+    const move = (e: PointerEvent) =>
+      onMoveArtboard(
+        moving.id,
+        Math.round(moving.originX + (e.clientX - moving.x) / viewportRef.current.zoom),
+        Math.round(moving.originY + (e.clientY - moving.y) / viewportRef.current.zoom),
+      );
+    const up = () => setMoving(null);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, [moving, onMoveArtboard]);
 
   useImperativeHandle(ref, () => ({
     size: () => ({ width: element.current?.clientWidth ?? 0, height: element.current?.clientHeight ?? 0 }),
@@ -101,8 +120,14 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView(
               type="button"
               data-artboard={artboard.id}
               className={`absolute bottom-full left-0 mb-1 origin-bottom-left whitespace-nowrap text-left ${selectedId === artboard.id ? "text-[#0d99ff]" : "text-neutral-500"}`}
-              style={{ fontSize: 12 / viewport.zoom }}
+              style={{ fontSize: 12 / viewport.zoom, cursor: onMoveArtboard ? "move" : undefined }}
               onClick={() => onSelect(artboard.id)}
+              onPointerDown={(e) => {
+                if (!onMoveArtboard || spaceDown) return;
+                e.stopPropagation();
+                onSelect(artboard.id);
+                setMoving({ id: artboard.id, x: e.clientX, y: e.clientY, originX: artboard.x, originY: artboard.y });
+              }}
             >
               {artboard.name}
             </button>

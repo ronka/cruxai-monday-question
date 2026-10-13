@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { addDays, dateKey, formatInZone, fromWallTime, parseDateKey, toWallTime } from "@/lib/time";
+import { OWNER } from "@/data/agendaData";
 import type { CalendarEvent } from "@/types/agenda";
+
+const myResponse = (event: CalendarEvent) => event.attendees.find((a) => a.email === OWNER.email)?.response;
 
 const HOUR_PX = 48;
 const SNAP = 15;
@@ -168,6 +171,8 @@ export function WeekView({ days, events, timeZone, now, onCreate, onSelect, onMo
                 )}
                 {layoutDay(key, events, timeZone).map(({ event, top, height, lane, lanes }) => {
                   const isDragged = drag?.event.id === event.id;
+                  const response = event.organizer === OWNER.email ? "accepted" : myResponse(event);
+                  const pending = response === "needsAction" || response === "tentative";
                   return (
                     <div
                       key={event.id}
@@ -185,7 +190,11 @@ export function WeekView({ days, events, timeZone, now, onCreate, onSelect, onMo
                         height: (height / 60) * HOUR_PX - 2,
                         left: `calc(${(lane / lanes) * 100}% + 2px)`,
                         width: `calc(${100 / lanes}% - 4px)`,
-                        background: event.color,
+                        background: pending ? "white" : event.color,
+                        color: pending ? event.color : undefined,
+                        borderColor: pending ? event.color : undefined,
+                        opacity: response === "declined" ? 0.45 : undefined,
+                        textDecoration: response === "declined" ? "line-through" : undefined,
                         transform: isDragged ? `translate(${drag.dx}px, ${drag.dy}px)` : undefined,
                       }}
                     >

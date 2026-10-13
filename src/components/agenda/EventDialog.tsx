@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Clock, MapPin, Trash2, Users, X } from "lucide-react";
-import { COLORS } from "@/data/agendaData";
+import { COLORS, OWNER } from "@/data/agendaData";
 import { dateKey, fromWallTime, parseDateKey, toWallTime } from "@/lib/time";
 import type { CalendarEvent, EventInput } from "@/types/agenda";
 
@@ -14,6 +14,7 @@ interface Props {
   onClose: () => void;
   onSave: (input: EventInput, event: CalendarEvent | null) => Promise<void>;
   onDelete: (event: CalendarEvent) => Promise<void>;
+  onRespond?: (event: CalendarEvent, response: "accepted" | "declined" | "tentative") => Promise<void>;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -23,7 +24,7 @@ const timeValue = (instant: number, timeZone: string) => {
 };
 
 /** Create or edit a single event. Times are entered in the display time zone. */
-export function EventDialog({ event, defaultStart, timeZone, onClose, onSave, onDelete }: Props) {
+export function EventDialog({ event, defaultStart, timeZone, onClose, onSave, onDelete, onRespond }: Props) {
   const start = event ? Date.parse(event.startsAt) : defaultStart;
   const end = event ? Date.parse(event.endsAt) : defaultStart + 3600000;
   const [title, setTitle] = useState(event?.title ?? "");
@@ -115,6 +116,25 @@ export function EventDialog({ event, defaultStart, timeZone, onClose, onSave, on
             <button key={option} type="button" role="radio" aria-checked={color === option} aria-label={option} onClick={() => setColor(option)} className={`h-5 w-5 rounded-full ${color === option ? "ring-2 ring-neutral-800 ring-offset-2" : ""}`} style={{ background: option }} />
           ))}
         </div>
+        {event && onRespond && event.organizer !== OWNER.email && (
+          <div className="mb-4 flex items-center gap-2 border-t border-neutral-200 pt-3 text-[13px]">
+            <span className="mr-auto text-neutral-600">Going?</span>
+            {(["accepted", "declined", "tentative"] as const).map((response) => {
+              const mine = event.attendees.find((attendee) => attendee.email === OWNER.email)?.response;
+              return (
+                <button
+                  key={response}
+                  type="button"
+                  aria-pressed={mine === response}
+                  onClick={() => void onRespond(event, response).catch((cause) => setError((cause as Error).message))}
+                  className={`rounded-full border px-3 py-1 ${mine === response ? "border-blue-600 bg-blue-50 text-blue-700" : "border-neutral-300"}`}
+                >
+                  {response === "accepted" ? "Yes" : response === "declined" ? "No" : "Maybe"}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {error && <p role="alert" className="mb-3 text-[13px] text-red-700">{error}</p>}
         <div className="flex justify-end">
           <button type="submit" disabled={busy} className="rounded bg-blue-600 px-5 py-1.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50">

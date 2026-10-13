@@ -7,13 +7,13 @@ export const DEFAULT_TIME_ZONE = "America/New_York";
 
 export const COLORS = ["#039be5", "#33b679", "#8e24aa", "#e67c73", "#f6bf26", "#616161"];
 
-const people: Record<string, string> = {
+export const PEOPLE: Record<string, string> = {
   "marco@fieldnotes.app": "Marco Bellini",
   "aisha@fieldnotes.app": "Aisha Bello",
   "tom@client.co": "Tom Becker",
   "jun@fieldnotes.app": "Jun Park",
 };
-const a = (email: string, response: Attendee["response"] = "accepted"): Attendee => ({ email, name: people[email], response });
+const a = (email: string, response: Attendee["response"] = "accepted"): Attendee => ({ email, name: PEOPLE[email], response });
 
 type Seed = { title: string; day: number; start: [number, number]; minutes: number; color: number; location?: string; attendees?: Attendee[]; organizer?: string; allDay?: boolean };
 
@@ -32,6 +32,12 @@ const seeds: Seed[] = [
   { title: "Weekly planning", day: -6, start: [9, 30], minutes: 60, color: 0, attendees: [a("marco@fieldnotes.app"), a("aisha@fieldnotes.app")] },
   { title: "Hiring sync", day: 16, start: [13, 0], minutes: 30, color: 2, organizer: "aisha@fieldnotes.app", attendees: [a("aisha@fieldnotes.app"), a(OWNER.email, "accepted")] },
   { title: "Flight to Lisbon", day: 20, start: [18, 45], minutes: 7 * 60, color: 5, location: "JFK T1" },
+  // Invitations from others next week (Oct 19–23).
+  { title: "Roadmap review", day: 9, start: [11, 0], minutes: 60, color: 0, organizer: "marco@fieldnotes.app", attendees: [a("marco@fieldnotes.app"), a(OWNER.email, "accepted"), a("jun@fieldnotes.app")] },
+  { title: "Vendor pitch", day: 9, start: [16, 30], minutes: 60, color: 3, organizer: "tom@client.co", attendees: [a("tom@client.co"), a(OWNER.email, "needsAction")] },
+  { title: "Design crit", day: 11, start: [8, 30], minutes: 90, color: 2, organizer: "aisha@fieldnotes.app", attendees: [a("aisha@fieldnotes.app"), a(OWNER.email, "tentative")] },
+  { title: "Team dinner", day: 11, start: [19, 0], minutes: 150, color: 1, organizer: "jun@fieldnotes.app", location: "Lucali", attendees: [a("jun@fieldnotes.app"), a(OWNER.email, "accepted"), a("marco@fieldnotes.app")] },
+  { title: "Board prep", day: 12, start: [23, 0], minutes: 120, color: 4, organizer: "marco@fieldnotes.app", attendees: [a("marco@fieldnotes.app"), a(OWNER.email, "declined")] },
 ];
 
 export function seedEvents() {
@@ -59,3 +65,12 @@ export function seedEvents() {
     };
   });
 }
+
+/** Invitations the "incoming invitation" control sends, relative to Sunday Oct 18 (New York). */
+export const incomingInvitations: { title: string; day: number; start: [number, number]; minutes: number; organizer: string; allDay?: boolean }[] = [
+  { title: "Customer escalation sync", day: 3, start: [10, 0], minutes: 30, organizer: "tom@client.co" },
+  { title: "Interview loop: frontend", day: 4, start: [13, 0], minutes: 240, organizer: "aisha@fieldnotes.app" },
+  { title: "Company holiday party", day: 5, start: [0, 0], minutes: 1440, organizer: "jun@fieldnotes.app", allDay: true },
+  { title: "Planning (spans midnight)", day: 2, start: [22, 30], minutes: 120, organizer: "marco@fieldnotes.app" },
+  { title: "Retro", day: 8, start: [15, 0], minutes: 60, organizer: "marco@fieldnotes.app" },
+];

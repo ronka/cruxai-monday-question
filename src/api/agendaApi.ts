@@ -1,9 +1,10 @@
-import { COLORS, OWNER, seedEvents } from "@/data/agendaData";
+import { COLORS, DEFAULT_TIME_ZONE, incomingInvitations, OWNER, PEOPLE, seedEvents } from "@/data/agendaData";
+import { addDays, fromWallTime, parseDateKey } from "@/lib/time";
 import { clock, HOUR } from "@/mock/clock";
 import { createEmitter, newId } from "@/mock/events";
 import { network, simulate } from "@/mock/network";
 import { openDatabase, type LocalDatabase } from "@/mock/sqlite";
-import type { AgendaEvent, CalendarEvent, EventInput } from "@/types/agenda";
+import type { AgendaEvent, CalendarEvent, EventInput, ResponseStatus } from "@/types/agenda";
 
 // Browser-local mock server backed by SQLite. Data persists across refreshes;
 // "Reset local data" in the mock controls restores the fixtures.
@@ -157,6 +158,58 @@ export async function simulateRemoteMove(id: string): Promise<CalendarEvent> {
     startsAt: new Date(Date.parse(event.startsAt) + HOUR).toISOString(),
     endsAt: new Date(Date.parse(event.endsAt) + HOUR).toISOString(),
   });
+}
+
+/**
+ * Records the calendar owner's response to an invitation (a local record —
+ * nothing is emailed). Rejects for events the owner organizes.
+ */
+export async function respondToInvitation(eventId: string, response: Exclude<ResponseStatus, "needsAction">): Promise<CalendarEvent> {
+  const db = await agendaDb();
+  return simulate("respondToInvitation", () => {
+    const event = readEvent(db, eventId);
+    if (event.organizer === OWNER.email) throw new Error("You organize this event");
+    const attendees = event.attendees.some((attendee) => attendee.email === OWNER.email)
+      ? event.attendees.map((attendee) => (attendee.email === OWNER.email ? { ...attendee, response } : attendee))
+      : [...event.attendees, { email: OWNER.email, name: OWNER.name, response }];
+    return writeEvent(db, eventId, { attendees });
+  });
+}
+
+/** Invitations (events organized by someone else) overlapping [from, to). */
+export async function listInvitations(from: string, to: string): Promise<CalendarEvent[]> {
+  return (await listEvents(from, to)).filter((event) => event.organizer !== OWNER.email);
+}
+
+let nextInvitation = 0;
+/**
+ * Mock control: someone invites the owner to a new event (response
+ * "needsAction"). Emits a live event like any other change.
+ */
+export async function simulateIncomingInvitation(): Promise<CalendarEvent> {
+  const db = await agendaDb();
+  const seed = incomingInvitations[nextInvitation++ % incomingInvitations.length];
+  const day = parseDateKey(addDays("2026-10-18", seed.day));
+  const start = fromWallTime({ ...day, hour: seed.start[0], minute: seed.start[1] }, DEFAULT_TIME_ZONE);
+  const end = seed.allDay
+    ? fromWallTime({ ...parseDateKey(addDays("2026-10-18", seed.day + 1)), hour: 0, minute: 0 }, DEFAULT_TIME_ZONE)
+    : start + seed.minutes * 60000;
+  const id = newId("evt-");
+  const data = {
+    title: seed.title,
+    allDay: !!seed.allDay,
+    timeZone: DEFAULT_TIME_ZONE,
+    color: COLORS[0],
+    location: "",
+    organizer: seed.organizer,
+    attendees: [
+      { email: seed.organizer, name: PEOPLE[seed.organizer], response: "accepted" },
+      { email: OWNER.email, name: OWNER.name, response: "needsAction" },
+    ],
+  };
+  db.run("INSERT INTO events VALUES (?, ?, ?, ?, 1, ?)", [id, new Date(start).toISOString(), new Date(end).toISOString(), JSON.stringify(data), clock.date().toISOString()]);
+  emitter.emit({ type: "event", eventId: id });
+  return readEvent(db, id);
 }
 
 export function failNextEventUpdate(): void {

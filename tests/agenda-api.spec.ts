@@ -24,3 +24,14 @@ test("updates reject stale versions and invalid ranges", async () => {
     createEvent({ title: "Bad", startsAt: "2026-10-14T10:00:00Z", endsAt: "2026-10-14T09:00:00Z", timeZone: "UTC" }),
   ).rejects.toThrow("End must be after start");
 });
+
+test("invitations record local responses and arrive as needsAction", async () => {
+  const { listInvitations, respondToInvitation, simulateIncomingInvitation } = await import("@/api/agendaApi");
+  const incoming = await simulateIncomingInvitation();
+  expect(incoming.attendees.find((a) => a.email === "rina@fieldnotes.app")?.response).toBe("needsAction");
+  const declined = await respondToInvitation(incoming.id, "declined");
+  expect(declined.attendees.find((a) => a.email === "rina@fieldnotes.app")?.response).toBe("declined");
+  const week = await listInvitations("2026-10-18T04:00:00Z", "2026-10-25T04:00:00Z");
+  expect(week.length).toBeGreaterThanOrEqual(6);
+  await expect(respondToInvitation("evt-1", "declined")).rejects.toThrow("You organize");
+});

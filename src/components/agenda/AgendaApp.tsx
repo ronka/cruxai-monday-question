@@ -11,6 +11,8 @@ import {
   listEvents,
   resetAgendaData,
   setTimeZonePreference,
+  respondToInvitation,
+  simulateIncomingInvitation,
   simulateRemoteMove,
   subscribeToAgenda,
   updateEvent,
@@ -166,6 +168,10 @@ export function AgendaApp() {
           timeZone={timeZone}
           onClose={() => setDialog(null)}
           onSave={save}
+          onRespond={async (event, response) => {
+            const updated = await respondToInvitation(event.id, response);
+            setDialog({ event: updated, start: Date.parse(updated.startsAt) });
+          }}
           onDelete={async (event) => {
             await deleteEvent(event.id);
             setDialog(null);
@@ -179,6 +185,10 @@ export function AgendaApp() {
           {
             title: "Other devices",
             actions: [{ label: "Another device moves “Weekly planning” +1h", run: () => simulateRemoteMove("evt-1") }],
+          },
+          {
+            title: "Invitations",
+            actions: [{ label: "Receive a new invitation (week of Oct 18)", run: simulateIncomingInvitation }],
           },
           { title: "Failures", actions: [{ label: "Fail next event update", run: failNextEventUpdate }] },
         ]}

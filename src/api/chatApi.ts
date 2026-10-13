@@ -58,6 +58,7 @@ export function toMessage(row: MessageRow): Message {
 }
 
 const listeners = new Set<(message: Message) => void>();
+const deleteListeners = new Set<(id: string) => void>();
 function assertChannel(id: string) {
   if (!channels.some((channel) => channel.id === id))
     throw new Error("Channel not found");
@@ -162,6 +163,30 @@ export async function simulateIncomingMessage(
     body: "Just finished reviewing this — looking good! I have a couple of thoughts to share.",
     createdAt: clock.date().toISOString(),
   });
+}
+/**
+ * Mock control: another member deletes a message (and its replies). Afterwards
+ * `getMessage(id)` rejects with "Message not found".
+ */
+export async function deleteMessage(id: string): Promise<void> {
+  const db = await chatDb();
+  if (!findMessage(db, id)) throw new Error("Message not found");
+  db.run("DELETE FROM messages WHERE id = ? OR parent_id = ?", [id, id]);
+  deleteListeners.forEach((listener) => listener(id));
+}
+/** Mock control helper: the newest top-level message in a channel. */
+export async function latestMessageId(channelId: string): Promise<string | undefined> {
+  const db = await chatDb();
+  return db.get<{ id: string }>(
+    "SELECT id FROM messages WHERE channel_id = ? AND parent_id IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    [channelId],
+  )?.id;
+}
+export function subscribeToDeletes(listener: (id: string) => void): () => void {
+  deleteListeners.add(listener);
+  return () => {
+    deleteListeners.delete(listener);
+  };
 }
 /** The next `sendMessage` call rejects without storing anything. */
 export function failNextMessageSend(): void {

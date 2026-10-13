@@ -1,6 +1,8 @@
-# Relay — threaded conversations interview
+# Relay — saved messages and reminders interview
 
-A Slack-inspired frontend starter for a feature implementation interview. The app already has channels, searchable message history, message sending, per-channel drafts, channel URLs, and simulated live messages. **Threaded conversations are the candidate's task and are not implemented.**
+A Slack-inspired frontend starter for a feature implementation interview. The app already has channels, searchable message history, message sending, per-channel drafts, channel URLs, and simulated live messages. Messages persist in browser SQLite and are timestamped by a controllable mock clock. **Saving messages and reminders are the candidate's task and are not implemented.**
+
+Template: **Relay** (shared with the threaded-conversations and scheduled-messages questions).
 
 ## Run
 
@@ -9,45 +11,46 @@ npm ci
 npm run dev -- -p 3002
 ```
 
-Open http://localhost:3002. No environment variables, database, account, or backend required. Uses the existing Next.js 15, React 18, TypeScript, and TanStack Query dependencies.
+Open http://localhost:3002. No environment variables, server, account, or backend required.
 
 ## Task
 
-Add threaded conversations to the workspace:
+Let users save messages for later and set reminders:
 
-1. Open any channel message in a side panel showing the original message and its replies. Close the panel without losing the channel position.
-2. Send replies optimistically. Show pending and failed states; retry a failed reply without losing text or creating duplicates.
-3. Display a reply count and unique participant avatars on the parent message in the channel timeline. Replies must not become top-level channel messages.
-4. Receive new replies live and keep the thread and parent summary consistent. Clean up subscriptions and avoid stale results when switching threads quickly.
-5. Preserve unfinished drafts independently for each thread when switching, closing, and reopening threads. Persistence across a full page refresh is optional.
-6. Support a shareable URL that loads the correct channel and parent message after a fresh page load. Handle missing messages and back/forward navigation.
-7. Include loading, empty, failure, and keyboard-accessible states. Keep the existing channel search and message sending working.
+1. Save any channel message. Saving the same message twice must not create a duplicate item. Saved items are private to the current user.
+2. Attach, change, or remove a reminder time on a saved item, and mark items complete.
+3. Build **Pending** and **Completed** views. Show an overdue indicator on pending items whose reminder time has passed.
+4. When the mock clock reaches a reminder, produce exactly **one** in-app notification. The notification can be snoozed, which schedules a new single notification.
+5. After a reload, reminders that became due while the app was closed produce one notification each — not one per reload.
+6. Jumping to a saved item opens the correct channel and scrolls to (and highlights) the message.
+7. If the source message is deleted, the saved item stays in the list with a clear "message deleted" state and does not break navigation.
 
-Choose and document the URL format and state design. Add meaningful tests for the interactions and races your implementation handles. No backend implementation is required.
+Choose and document the data model. Add meaningful tests for reminder delivery, reconciliation, and deleted messages.
+
+## What the starter provides
+
+- **Message IDs** — every message has a stable `id`; each rendered message has the DOM id `message-<id>`. Channels are addressable with `?channel=<id>`.
+- **Mock clock** — `src/mock/clock.ts`. Time moves only when you use the clock buttons in **Mock controls**. Use `clock.now()` and `clock.subscribe()` rather than `Date.now()`. The mock time is saved, so a reload continues from the same time.
+- **Browser SQLite** — `src/mock/sqlite.ts`. `chatDb()` in `src/api/chatApi.ts` opens the `relay` database. Add your own tables to `SCHEMA` and bump `version` (this discards saved data). Use `db.transaction()` for multi-statement changes.
+- **Deleted messages** — **Mock controls → Delete newest message in this channel** or **Delete a message by ID…** simulate another member deleting a message.
+- **Reset local data** restores fixtures and the clock.
 
 ## Code map
 
-- [Workspace UI](src/components/chat/ChatWorkspace.tsx): channel routing, query subscriptions, composer, mock controls.
+- [Workspace UI](src/components/chat/ChatWorkspace.tsx): channel routing, composer, mock controls.
 - [Message list](src/components/chat/MessageList.tsx): flat channel messages.
-- [Mock API](src/api/chatApi.ts): async in-memory reads/writes with 350 ms latency.
+- [Mock API](src/api/chatApi.ts): SQLite-backed reads and writes with 350 ms latency.
 - [Fixtures](src/data/chatData.ts): channels, members, starting messages.
-- [Types](src/types/chat.ts): message and send contracts.
-
-`app/` is the Next.js route directory. This branch replaces the Monday exercise; the original is preserved on `main`.
+- [Mock infrastructure](src/mock): clock, SQLite adapter, network faults, controls panel.
 
 ## Mock API contract
 
-- `getMessages(channelId)` returns top-level messages only.
-- `getMessage(id)` returns one message or rejects if missing.
-- `getReplies(parentId)` returns replies to a message.
-- `sendMessage({ channelId, body, clientId, parentId? })` sends either a channel message or a reply. Use a stable client ID to make successful retries idempotent. The server trims whitespace and rejects empty or oversized messages.
-- `subscribeToMessages(listener)` delivers new messages and replies, and returns an unsubscribe function. A successful send also emits an event before its promise resolves.
-- `simulateIncomingMessage(channelId, parentId?)` creates a message from another member. Pass a parent ID to exercise incoming thread replies as you build the feature.
-- `failNextMessageSend()` makes the next new send reject once.
-
-The collapsible controls beneath the composer can inject messages, enable a 15-second incoming-message interval, or fail the next send. Automatic simulation is off by default. Thread API functions are supplied as infrastructure, but no thread UI, summaries, optimistic reply state, thread drafts, or thread routing is supplied.
-
-Data is local to this browser tab and resets on reload. Cross-tab synchronization and production persistence are out of scope.
+- `getMessages(channelId)` returns top-level messages in timestamp order.
+- `getMessage(id)` returns one message or rejects with `Message not found`.
+- `sendMessage({ channelId, body, clientId })` stores and publishes a message stamped with the mock time. Reusing a `clientId` returns the stored message.
+- `subscribeToMessages(listener)` delivers new messages; `subscribeToDeletes(listener)` delivers deleted message IDs. Both return an unsubscribe function.
+- `deleteMessage(id)` deletes a message and its replies (mock control).
+- `resetChatData()` restores fixtures.
 
 ## Verify
 

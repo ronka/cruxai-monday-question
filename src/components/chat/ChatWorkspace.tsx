@@ -15,11 +15,14 @@ import {
 } from "lucide-react";
 import { channels, members } from "@/data/chatData";
 import {
+  deleteMessage,
   failNextMessageSend,
   getMessages,
+  latestMessageId,
   resetChatData,
   sendMessage,
   simulateIncomingMessage,
+  subscribeToDeletes,
   subscribeToMessages,
 } from "@/api/chatApi";
 import type { Message } from "@/types/chat";
@@ -67,6 +70,13 @@ export function ChatWorkspace() {
           void queryClient.invalidateQueries({
             queryKey: ["messages", message.channelId],
           });
+      }),
+    [queryClient],
+  );
+  useEffect(
+    () =>
+      subscribeToDeletes(() => {
+        void queryClient.invalidateQueries({ queryKey: ["messages"] });
       }),
     [queryClient],
   );
@@ -321,6 +331,21 @@ export function ChatWorkspace() {
               {
                 label: "Receive a message in this channel",
                 run: () => simulateIncomingMessage(channelId),
+              },
+              {
+                label: "Delete newest message in this channel",
+                run: async () => {
+                  const id = await latestMessageId(channelId);
+                  if (!id) throw new Error("No messages to delete");
+                  await deleteMessage(id);
+                },
+              },
+              {
+                label: "Delete a message by ID…",
+                run: async () => {
+                  const id = window.prompt("Message ID (e.g. general-3)");
+                  if (id) await deleteMessage(id.trim());
+                },
               },
               {
                 label: simulation

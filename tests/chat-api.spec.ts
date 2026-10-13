@@ -87,3 +87,15 @@ test("rejects cross-channel parents and blank messages", async () => {
   await jest.runAllTimersAsync();
   await blank;
 });
+
+test("deleted messages disappear and notify subscribers", async () => {
+  const { deleteMessage, getMessage, subscribeToDeletes } = await import("@/api/chatApi");
+  const listener = jest.fn();
+  const unsubscribe = subscribeToDeletes(listener);
+  await deleteMessage("random-2");
+  expect(listener).toHaveBeenCalledWith("random-2");
+  const missing = expect(getMessage("random-2")).rejects.toThrow("Message not found");
+  await jest.runAllTimersAsync();
+  await missing;
+  unsubscribe();
+});

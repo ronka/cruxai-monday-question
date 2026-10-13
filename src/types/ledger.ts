@@ -12,9 +12,16 @@ export interface Field {
 
 export type CellValue = string | number | null;
 
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 export interface LedgerRecord {
   id: string;
   databaseId: string;
+  checklist: ChecklistItem[];
   /** Keyed by field ID. Missing keys are empty. */
   values: Record<string, CellValue>;
   createdAt: string;

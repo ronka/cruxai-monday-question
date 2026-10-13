@@ -5,6 +5,7 @@ import { network, simulate } from "@/mock/network";
 import { openDatabase, type LocalDatabase } from "@/mock/sqlite";
 import type {
   CellValue,
+  ChecklistItem,
   Field,
   FieldType,
   LedgerDatabase,
@@ -27,6 +28,7 @@ CREATE TABLE records (
   id TEXT PRIMARY KEY,
   database_id TEXT NOT NULL,
   data TEXT NOT NULL,
+  checklist TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -49,10 +51,11 @@ export function ledgerDb(): Promise<LocalDatabase> {
         ]);
       const now = clock.date().toISOString();
       for (const record of initialRecords)
-        db.run("INSERT INTO records VALUES (?, ?, ?, ?, ?)", [
+        db.run("INSERT INTO records VALUES (?, ?, ?, ?, ?, ?)", [
           record.id,
           record.databaseId,
           JSON.stringify(record.values),
+          JSON.stringify(record.checklist ?? []),
           now,
           now,
         ]);
@@ -65,7 +68,7 @@ const events = createEmitter<LedgerEvent>();
 export const subscribeToLedger = events.subscribe;
 
 type FieldRow = { id: string; database_id: string; name: string; type: FieldType; options: string; position: number };
-type RecordRow = { id: string; database_id: string; data: string; created_at: string; updated_at: string };
+type RecordRow = { id: string; database_id: string; data: string; checklist: string; created_at: string; updated_at: string };
 const toField = (row: FieldRow): Field => ({
   id: row.id,
   databaseId: row.database_id,
@@ -78,6 +81,7 @@ const toRecord = (row: RecordRow): LedgerRecord => ({
   id: row.id,
   databaseId: row.database_id,
   values: JSON.parse(row.data),
+  checklist: JSON.parse(row.checklist),
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -160,13 +164,30 @@ export async function updateRecordValue(recordId: string, fieldId: string, value
   });
 }
 
+/** Replaces a record's checklist. Item IDs must be unique within the record. */
+export async function updateChecklist(recordId: string, checklist: ChecklistItem[]): Promise<LedgerRecord> {
+  const db = await ledgerDb();
+  return simulate("updateChecklist", () => {
+    const record = readRecord(db, recordId);
+    if (new Set(checklist.map((item) => item.id)).size !== checklist.length)
+      throw new Error("Checklist item IDs must be unique");
+    db.run("UPDATE records SET checklist = ?, updated_at = ? WHERE id = ?", [
+      JSON.stringify(checklist.map(({ id, text, done }) => ({ id, text, done }))),
+      clock.date().toISOString(),
+      recordId,
+    ]);
+    events.emit({ type: "record", databaseId: record.databaseId, recordId });
+    return readRecord(db, recordId);
+  });
+}
+
 export async function createRecord(databaseId: string, values: Record<string, CellValue> = {}): Promise<LedgerRecord> {
   const db = await ledgerDb();
   return simulate("createRecord", () => {
     findDatabase(databaseId);
     const id = newId("r-");
     const now = clock.date().toISOString();
-    db.run("INSERT INTO records VALUES (?, ?, ?, ?, ?)", [id, databaseId, JSON.stringify(values), now, now]);
+    db.run("INSERT INTO records VALUES (?, ?, ?, ?, ?, ?)", [id, databaseId, JSON.stringify(values), "[]", now, now]);
     events.emit({ type: "record", databaseId, recordId: id });
     return readRecord(db, id);
   });
@@ -232,6 +253,42 @@ export async function deleteField(fieldId: string): Promise<void> {
       }
     });
     events.emit({ type: "schema", databaseId: field.databaseId });
+  });
+}
+
+/**
+ * Changes a field's type. Existing values that cannot be converted become
+ * empty. Status fields get `options` (defaults to the distinct existing values).
+ */
+export async function changeFieldType(fieldId: string, type: FieldType, options?: string[]): Promise<Field> {
+  const db = await ledgerDb();
+  return simulate("changeFieldType", () => {
+    const field = readField(db, fieldId);
+    if (field.type === "title" || type === "title") throw new Error("The title field type cannot change");
+    db.transaction(() => {
+      const rows = db.all<RecordRow>("SELECT * FROM records WHERE database_id = ?", [field.databaseId]);
+      const distinct = [
+        ...new Set(rows.map((row) => JSON.parse(row.data)[fieldId]).filter((v) => v != null && v !== "").map(String)),
+      ];
+      const nextOptions = type === "status" ? (options ?? distinct) : [];
+      const target: Field = { ...field, type, options: nextOptions };
+      db.run("UPDATE fields SET type = ?, options = ? WHERE id = ?", [type, JSON.stringify(nextOptions), fieldId]);
+      for (const row of rows) {
+        const values = JSON.parse(row.data);
+        if (values[fieldId] == null) continue;
+        let converted: CellValue = type === "number" ? Number(values[fieldId]) : String(values[fieldId]);
+        try {
+          converted = validate(target, converted);
+        } catch {
+          converted = null;
+        }
+        if (type === "number" && Number.isNaN(converted)) converted = null;
+        values[fieldId] = converted;
+        db.run("UPDATE records SET data = ? WHERE id = ?", [JSON.stringify(values), row.id]);
+      }
+    });
+    events.emit({ type: "schema", databaseId: field.databaseId });
+    return readField(db, fieldId);
   });
 }
 

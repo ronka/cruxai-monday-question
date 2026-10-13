@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Ledger — Lumen Labs",
-  description: "A Notion-style database. Interview starter.",
+  description: "A Notion-style database. Record templates interview starter.",
 };
 
 export default function RootLayout({

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Trash2, X } from "lucide-react";
-import type { CellValue, Field, LedgerRecord } from "@/types/ledger";
+import type { CellValue, ChecklistItem, Field, LedgerRecord } from "@/types/ledger";
+import { ChecklistEditor } from "./ChecklistEditor";
 import { CellDisplay, CellEditor } from "./Cells";
 
 interface Props {
@@ -11,10 +12,11 @@ interface Props {
   onClose: () => void;
   onUpdate: (recordId: string, fieldId: string, value: CellValue) => void;
   onDelete: (recordId: string) => void;
+  onChecklistChange: (recordId: string, items: ChecklistItem[]) => void;
 }
 
 /** Side peek showing one record's properties as an editable form. */
-export function RecordPeek({ record, fields, onClose, onUpdate, onDelete }: Props) {
+export function RecordPeek({ record, fields, onClose, onUpdate, onDelete, onChecklistChange }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const title = fields.find((field) => field.type === "title");
   return (
@@ -84,6 +86,11 @@ export function RecordPeek({ record, fields, onClose, onUpdate, onDelete }: Prop
                 </div>
               ))}
           </dl>
+          <ChecklistEditor
+            key={record.id}
+            items={record.checklist}
+            onChange={(items) => onChecklistChange(record.id, items)}
+          />
           <p className="mt-8 border-t border-stone-100 pt-4 text-xs text-stone-400">
             Last edited {new Date(record.updatedAt).toLocaleString("en-US")}
           </p>

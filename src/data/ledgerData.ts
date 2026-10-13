@@ -45,7 +45,12 @@ const rows: [string, string, string, string, string, number][] = [
   ["Localized onboarding (ES, DE)", "Not started", "emma", "2026-12-18", "Growth", 50],
 ];
 
-export const initialRecords: { id: string; databaseId: string; values: Record<string, CellValue> }[] =
+export const initialRecords: {
+  id: string;
+  databaseId: string;
+  values: Record<string, CellValue>;
+  checklist?: { id: string; text: string; done: boolean }[];
+}[] =
   rows.map(([title, status, owner, due, team, budget], index) => ({
     id: `p-${index + 1}`,
     databaseId: "projects",
@@ -57,4 +62,17 @@ export const initialRecords: { id: string; databaseId: string; values: Record<st
       "f-team": team,
       "f-budget": budget,
     },
+    checklist:
+      index === 0
+        ? [
+            { id: "c-1", text: "Interview five new customers", done: true },
+            { id: "c-2", text: "Draft checklist states", done: true },
+            { id: "c-3", text: "Usability test with prototype", done: false },
+          ]
+        : index === 3
+          ? [
+              { id: "c-4", text: "Agree on conflict policy", done: false },
+              { id: "c-5", text: "Spike local queue", done: false },
+            ]
+          : [],
   }));

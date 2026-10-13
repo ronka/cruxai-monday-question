@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
 import { ChevronsLeft, FileText, Filter, Plus, Search, Settings, Table2 } from "lucide-react";
 import {
+  changeFieldType,
   createRecord,
   deleteField,
   deleteRecord,
@@ -15,6 +16,7 @@ import {
   resetLedgerData,
   simulateCollaboratorEdit,
   subscribeToLedger,
+  updateChecklist,
   updateRecordValue,
 } from "@/api/ledgerApi";
 import { people } from "@/data/ledgerData";
@@ -246,6 +248,15 @@ export function LedgerApp() {
             fields={fields}
             onClose={() => navigate({ record: null })}
             onUpdate={update}
+            onChecklistChange={async (id, items) => {
+              try {
+                await updateChecklist(id, items);
+              } catch (cause) {
+                setError((cause as Error).message);
+              } finally {
+                await queryClient.invalidateQueries({ queryKey: ["records", databaseId] });
+              }
+            }}
             onDelete={async (id) => {
               await deleteRecord(id);
               navigate({ record: null });
@@ -258,6 +269,14 @@ export function LedgerApp() {
           {
             title: "Collaborators",
             actions: [{ label: "Teammate edits a record's status", run: () => simulateCollaboratorEdit(databaseId) }],
+          },
+          {
+            title: "Schema changes (admin)",
+            actions: [
+              { label: "Change “Budget (k$)” to text", run: () => changeFieldType("f-budget", "text") },
+              { label: "Change “Team” to status", run: () => changeFieldType("f-team", "status") },
+              { label: "Delete the “Due” field", run: () => deleteField("f-due") },
+            ],
           },
           { title: "Failures", actions: [{ label: "Fail next cell save", run: failNextSave }] },
         ]}

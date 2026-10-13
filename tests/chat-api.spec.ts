@@ -1,11 +1,17 @@
-import { afterEach, beforeEach, expect, jest, test } from "@jest/globals";
+/** @jest-environment node */
+import { afterEach, beforeAll, beforeEach, expect, jest, test } from "@jest/globals";
 import {
   failNextMessageSend,
   getMessages,
   getReplies,
+  chatDb,
   sendMessage,
   subscribeToMessages,
 } from "@/api/chatApi";
+
+beforeAll(async () => {
+  await chatDb();
+});
 
 beforeEach(() => {
   jest.useFakeTimers();
@@ -52,7 +58,7 @@ test("a simulated failure can be retried with the same ID", async () => {
   };
   failNextMessageSend();
   const failure = expect(sendMessage(input)).rejects.toThrow(
-    "could not be sent",
+    "request failed",
   );
   await jest.runAllTimersAsync();
   await failure;

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowDown,
   ChevronDown,
   Hash,
   Headphones,
@@ -13,18 +12,19 @@ import {
   Send,
   Sparkles,
   Users,
-  Wifi,
 } from "lucide-react";
 import { channels, members } from "@/data/chatData";
 import {
   failNextMessageSend,
   getMessages,
+  resetChatData,
   sendMessage,
   simulateIncomingMessage,
   subscribeToMessages,
 } from "@/api/chatApi";
 import type { Message } from "@/types/chat";
 import { MessageList } from "./MessageList";
+import { MockControls } from "@/mock/MockControls";
 import "./chat.css";
 
 export function ChatWorkspace() {
@@ -73,7 +73,7 @@ export function ChatWorkspace() {
   useEffect(() => {
     if (!simulation) return;
     const timer = window.setInterval(
-      () => simulateIncomingMessage(channelId),
+      () => void simulateIncomingMessage(channelId),
       15000,
     );
     return () => window.clearInterval(timer);
@@ -310,36 +310,42 @@ export function ChatWorkspace() {
               <span>Only visible to this workspace</span>
             </div>
           </div>
-          <details className="mock-controls">
-            <summary>
-              <Wifi size={13} /> Mock workspace controls
-            </summary>
-            <div>
-              <button onClick={() => simulateIncomingMessage(channelId)}>
-                <ArrowDown size={13} /> Receive a message
-              </button>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={simulation}
-                  onChange={(event) => setSimulation(event.target.checked)}
-                />{" "}
-                Receive every 15 seconds
-              </label>
-              <button
-                disabled={failureArmed}
-                onClick={() => {
-                  failNextMessageSend();
-                  setFailureArmed(true);
-                }}
-              >
-                {failureArmed ? "Next send will fail" : "Fail next send"}
-              </button>
-              <span>In-memory data · refresh to reset</span>
-            </div>
-          </details>
         </main>
       </div>
+      <MockControls
+        showClock
+        sections={[
+          {
+            title: "Workspace",
+            actions: [
+              {
+                label: "Receive a message in this channel",
+                run: () => simulateIncomingMessage(channelId),
+              },
+              {
+                label: simulation
+                  ? "Stop receiving every 15 seconds"
+                  : "Receive every 15 seconds",
+                run: () => setSimulation((value) => !value),
+              },
+            ],
+          },
+          {
+            title: "Failures",
+            actions: [
+              {
+                label: "Fail next send",
+                hint: failureArmed ? "armed" : undefined,
+                run: () => {
+                  failNextMessageSend();
+                  setFailureArmed(true);
+                },
+              },
+            ],
+          },
+        ]}
+        onReset={resetChatData}
+      />
     </div>
   );
 }

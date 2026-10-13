@@ -1,5 +1,3 @@
-import { ChatWorkspace } from '@/components/chat/ChatWorkspace';
-
 export default function Home() {
-  return <ChatWorkspace />;
+  return <main className="p-8">Interview starter base. Check out a question branch.</main>;
 }

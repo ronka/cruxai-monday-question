@@ -29,6 +29,8 @@ export interface Conversation {
   preview: string;
   /** True when the latest customer message is newer than this agent's last read. */
   unread: boolean;
+  /** Agent the conversation is assigned to (assignment UI is out of scope here). */
+  assigneeId: string | null;
   /** Increments on every change. */
   version: number;
 }
@@ -36,7 +38,8 @@ export interface Conversation {
 export interface Message {
   id: string;
   conversationId: string;
-  kind: "customer" | "agent";
+  /** "note" is an internal note visible only to agents. */
+  kind: "customer" | "agent" | "note";
   /** Customer ID or agent ID. */
   authorId: string;
   body: string;

@@ -27,3 +27,15 @@ test("replies are idempotent by client ID and failures store nothing", async () 
   expect((await getMessages("conv-2")).filter((m) => m.id === "client-1")).toHaveLength(1);
   expect(await countConversations()).toEqual({ open: 7, closed: 2 });
 });
+
+test("internal notes are stored but never become the preview or unread", async () => {
+  const { addNote, getConversation } = await import("@/api/helpdeskApi");
+  await markRead("conv-4", "olivia");
+  const before = await getConversation("conv-4", "olivia");
+  await addNote({ conversationId: "conv-4", agentId: "sana", body: "Internal only", clientId: "note-1" });
+  const after = await getConversation("conv-4", "olivia");
+  expect(after.preview).toBe(before.preview);
+  expect(after.unread).toBe(false);
+  expect(after.assigneeId).toBe("olivia");
+  expect((await getMessages("conv-4")).at(-1)).toMatchObject({ kind: "note", body: "Internal only" });
+});

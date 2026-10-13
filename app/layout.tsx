@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Helpdesk — Inbox",
-  description: "An Intercom-style support inbox. Interview starter.",
+  description: "An Intercom-style support inbox. Snooze interview starter.",
 };
 
 export default function RootLayout({

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, CheckCircle2, Inbox, Mail, MapPin, RotateCcw, Search, Send } from "lucide-react";
 import {
+  addNote,
   countConversations,
   failNextReply,
   getConversation,
@@ -17,6 +18,7 @@ import {
   simulateAgentReply,
   simulateCustomerMessage,
   simulateNewConversation,
+  simulateTeammateNote,
   subscribeToHelpdesk,
 } from "@/api/helpdeskApi";
 import { agents, customers, DEFAULT_AGENT_ID } from "@/data/helpdeskData";
@@ -46,6 +48,7 @@ export function HelpdeskApp() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
+  const [mode, setMode] = useState<"reply" | "note">("reply");
   const [error, setError] = useState("");
   const thread = useRef<HTMLDivElement>(null);
 
@@ -89,7 +92,8 @@ export function HelpdeskApp() {
     setSending(true);
     setError("");
     try {
-      await sendReply({ conversationId: selectedId, agentId, body: drafts[selectedId], clientId: crypto.randomUUID() });
+      const input = { conversationId: selectedId, agentId, body: drafts[selectedId], clientId: crypto.randomUUID() };
+      await (mode === "note" ? addNote(input) : sendReply(input));
       setDrafts((d) => ({ ...d, [selectedId]: "" }));
     } catch (cause) {
       setError((cause as Error).message);
@@ -157,7 +161,10 @@ export function HelpdeskApp() {
             <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3">
               <div>
                 <h2 className="font-semibold">{conversation.data?.subject ?? "…"}</h2>
-                <p className="text-[12px] text-zinc-500">{customer.data?.name} · {conversation.data?.status}</p>
+                <p className="text-[12px] text-zinc-500">
+                  {customer.data?.name} · {conversation.data?.status} · Assigned to{" "}
+                  {agents.find((a) => a.id === conversation.data?.assigneeId)?.name ?? "nobody"}
+                </p>
               </div>
               {conversation.data && (
                 <button
@@ -172,6 +179,15 @@ export function HelpdeskApp() {
             <div ref={thread} className="flex-1 space-y-4 overflow-y-auto bg-[#fafafa] px-6 py-5">
               {messages.data?.map((m) => {
                 const fromCustomer = m.kind === "customer";
+                if (m.kind === "note") {
+                  const noteAuthor = agents.find((a) => a.id === m.authorId)!;
+                  return (
+                    <div key={m.id} className="mx-auto max-w-[80%] rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[13px]">
+                      <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">Internal note · {noteAuthor.name}</p>
+                      <p>{m.body}</p>
+                    </div>
+                  );
+                }
                 const author = fromCustomer ? customers.find((c) => c.id === m.authorId)! : agents.find((a) => a.id === m.authorId)!;
                 return (
                   <div key={m.id} className={`flex items-end gap-2 ${fromCustomer ? "" : "flex-row-reverse"}`}>
@@ -186,18 +202,25 @@ export function HelpdeskApp() {
             </div>
             <form className="border-t border-zinc-200 p-4" onSubmit={(e) => { e.preventDefault(); void reply(); }}>
               {error && <p role="alert" className="mb-2 text-[13px] text-red-600">{error} Your draft is kept.</p>}
-              <div className="rounded-xl border border-zinc-300 focus-within:border-[#286efa]">
+              <div className="mb-2 flex gap-1 text-[13px]" role="tablist">
+                {(["reply", "note"] as const).map((option) => (
+                  <button key={option} type="button" role="tab" aria-selected={mode === option} onClick={() => setMode(option)} className={`rounded-md px-2.5 py-1 capitalize ${mode === option ? (option === "note" ? "bg-amber-100 text-amber-900" : "bg-blue-50 text-blue-700") : "text-zinc-500"}`}>
+                    {option}
+                  </button>
+                ))}
+              </div>
+              <div className={`rounded-xl border ${mode === "note" ? "border-amber-300 bg-amber-50/40" : "border-zinc-300 focus-within:border-[#286efa]"}`}>
                 <textarea
-                  aria-label="Reply"
-                  placeholder="Reply to the customer…"
-                  className="h-24 w-full resize-none rounded-xl p-3 outline-none"
+                  aria-label={mode === "note" ? "Internal note" : "Reply"}
+                  placeholder={mode === "note" ? "Add an internal note (only agents see this)…" : "Reply to the customer…"}
+                  className="h-24 w-full resize-none rounded-xl bg-transparent p-3 outline-none"
                   value={drafts[selectedId] ?? ""}
                   onChange={(e) => setDrafts((d) => ({ ...d, [selectedId]: e.target.value }))}
                   onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void reply(); }}
                 />
                 <div className="flex justify-end px-3 pb-2">
                   <button type="submit" disabled={sending || !drafts[selectedId]?.trim()} className="flex items-center gap-1.5 rounded-lg bg-[#286efa] px-3 py-1.5 font-medium text-white disabled:opacity-40">
-                    <Send className="h-4 w-4" /> {sending ? "Sending…" : "Send"}
+                    <Send className="h-4 w-4" /> {sending ? "Sending…" : mode === "note" ? "Add note" : "Send"}
                   </button>
                 </div>
               </div>
@@ -222,6 +245,7 @@ export function HelpdeskApp() {
       </aside>
 
       <MockControls
+        showClock
         sections={[
           {
             title: "Customers and agents",
@@ -231,6 +255,7 @@ export function HelpdeskApp() {
                 ? [
                     { label: "Customer replies in this conversation", run: () => simulateCustomerMessage(selectedId) },
                     { label: "Marcus replies in this conversation", run: () => simulateAgentReply(selectedId, "marcus") },
+                    { label: "Sana adds an internal note here", run: () => simulateTeammateNote(selectedId, "sana") },
                   ]
                 : []),
             ],

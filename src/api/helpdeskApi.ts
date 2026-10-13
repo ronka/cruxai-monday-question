@@ -15,7 +15,8 @@ CREATE TABLE conversations (
   subject TEXT NOT NULL,
   status TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  version INTEGER NOT NULL DEFAULT 1
+  version INTEGER NOT NULL DEFAULT 1,
+  assignee_id TEXT
 );
 CREATE TABLE messages (
   id TEXT PRIMARY KEY,
@@ -44,7 +45,8 @@ export function helpdeskDb(): Promise<LocalDatabase> {
       seedThreads.forEach((thread, index) => {
         const id = `conv-${index + 1}`;
         const start = now - thread.minutesAgo * MINUTE - thread.messages.length * 3 * MINUTE;
-        db.run("INSERT INTO conversations VALUES (?, ?, ?, ?, ?, 1)", [id, thread.customer, thread.subject, thread.status, new Date(start).toISOString()]);
+        const assignee = ["olivia", "marcus", null, "olivia", "sana", null, "olivia", "marcus", "sana"][index] ?? null;
+        db.run("INSERT INTO conversations VALUES (?, ?, ?, ?, ?, 1, ?)", [id, thread.customer, thread.subject, thread.status, new Date(start).toISOString(), assignee]);
         thread.messages.forEach(([kind, author, body], m) => {
           const at = new Date(now - thread.minutesAgo * MINUTE - (thread.messages.length - 1 - m) * 3 * MINUTE).toISOString();
           db.run("INSERT INTO messages VALUES (?, ?, ?, ?, ?, ?)", [`${id}-m${m + 1}`, id, kind, author, body, at]);
@@ -69,6 +71,7 @@ type ConversationRow = {
   status: ConversationStatus;
   created_at: string;
   version: number;
+  assignee_id: string | null;
   last_message_at: string;
   preview: string;
   last_customer_at: string | null;
@@ -78,7 +81,7 @@ type ConversationRow = {
 const CONVERSATION_SQL = `
 SELECT c.*,
   (SELECT MAX(created_at) FROM messages m WHERE m.conversation_id = c.id) AS last_message_at,
-  (SELECT body FROM messages m WHERE m.conversation_id = c.id ORDER BY created_at DESC, rowid DESC LIMIT 1) AS preview,
+  (SELECT body FROM messages m WHERE m.conversation_id = c.id AND m.kind != 'note' ORDER BY created_at DESC, rowid DESC LIMIT 1) AS preview,
   (SELECT MAX(created_at) FROM messages m WHERE m.conversation_id = c.id AND m.kind = 'customer') AS last_customer_at,
   (SELECT read_at FROM reads r WHERE r.conversation_id = c.id AND r.agent_id = ?) AS read_at
 FROM conversations c`;
@@ -92,6 +95,7 @@ const toConversation = (row: ConversationRow): Conversation => ({
   lastMessageAt: row.last_message_at,
   preview: row.preview,
   unread: !!row.last_customer_at && (!row.read_at || row.last_customer_at > row.read_at),
+  assigneeId: row.assignee_id,
   version: row.version,
 });
 
@@ -202,7 +206,7 @@ export async function simulateNewConversation(): Promise<string> {
   const customer = customers[Math.floor(Math.random() * customers.length)];
   const id = newId("conv-");
   clock.advance(MINUTE);
-  db.run("INSERT INTO conversations VALUES (?, ?, ?, 'open', ?, 1)", [id, customer.id, "New question", clock.date().toISOString()]);
+  db.run("INSERT INTO conversations VALUES (?, ?, ?, 'open', ?, 1, NULL)", [id, customer.id, "New question", clock.date().toISOString()]);
   insertMessage(db, id, "customer", customer.id, "Hi there — quick question about my account.");
   return id;
 }
@@ -212,6 +216,25 @@ export async function simulateAgentReply(conversationId: string, agentId: string
   const db = await helpdeskDb();
   clock.advance(MINUTE);
   return insertMessage(db, conversationId, "agent", agentId, "Looking into this now.");
+}
+
+/** Adds an internal note (agents only; never shown to the customer). */
+export async function addNote(input: { conversationId: string; agentId: string; body: string; clientId: string }): Promise<Message> {
+  const db = await helpdeskDb();
+  return simulate("addNote", () => {
+    const existing = getMessagesSync(db, input.conversationId).find((m) => m.id === input.clientId);
+    if (existing) return existing;
+    readConversation(db, input.conversationId, input.agentId);
+    if (!input.body.trim()) throw new Error("Note cannot be empty");
+    return insertMessage(db, input.conversationId, "note", input.agentId, input.body.trim(), input.clientId);
+  });
+}
+
+/** Mock control: another agent adds an internal note. */
+export async function simulateTeammateNote(conversationId: string, agentId: string): Promise<Message> {
+  const db = await helpdeskDb();
+  clock.advance(MINUTE);
+  return insertMessage(db, conversationId, "note", agentId, "FYI: engineering is looking at this, ETA tomorrow.");
 }
 
 export function failNextReply(): void {
